@@ -19,6 +19,7 @@ Example usage:
 
 .. code:: rust
 
+    extern crate range_lock;
     use range_lock::RangeLock;
     use std::sync::{Arc, Barrier};
     use std::thread;
@@ -26,7 +27,8 @@ Example usage:
     // The data that will simultaneously be accessed from the threads.
     let data = vec![10, 11, 12, 13];
 
-    // Create the RangeLock for the threads.
+    // Embed the data in a RangeLock
+    // and clone atomic references to it for the threads.
     let data_lock0 = Arc::new(RangeLock::new(data));
     let data_lock1 = Arc::clone(&data_lock0);
     let data_lock2 = Arc::clone(&data_lock0);
