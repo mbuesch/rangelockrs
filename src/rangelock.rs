@@ -24,6 +24,7 @@ use std::{
     }
 };
 
+#[derive(Debug)]
 pub struct RangeLock<T> {
     ranges: Mutex<HashSet<Range<usize>>>,
     data:   UnsafeCell<Vec<T>>,
@@ -100,6 +101,7 @@ impl<'a, T> RangeLock<T> {
     }
 }
 
+#[derive(Debug)]
 pub struct RangeLockGuard<'a, T> {
     lock:   &'a RangeLock<T>,
     range:  Range<usize>,
