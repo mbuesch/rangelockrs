@@ -1,0 +1,20 @@
+# -*- coding: utf-8 -*-
+
+[package]
+edition             = "2018"
+name                = "range-lock"
+description         = "Vec range lock"
+version             = "0.1.0"
+authors             = ["Michael Buesch <m@bues.ch>"]
+license             = "MIT OR Apache-2.0"
+#readme              = "README.md"
+repository          = "https://bues.ch/cgit/rangelockrs.git"
+
+categories          = ["algorithms"]
+keywords            = ["mutex", "lock", "range"]
+
+[dependencies]
+
+[build-dependencies]
+
+# vim: ts=4 sw=4 expandtab
