@@ -1,28 +1,18 @@
-range-lock - Multithread range lock for Vec
-===========================================
+// -*- coding: utf-8 -*-
+//
+// Copyright 2021 Michael Büsch <m@bues.ch>
+//
+// Licensed under the Apache License version 2.0
+// or the MIT license, at your option.
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+//
 
-`https://bues.ch/ <https://bues.ch/>`_
+use range_lock::RangeLock;
+use std::sync::{Arc, Barrier};
+use std::thread;
 
-Provides multi-threaded access to a single Vec<T> instance. Any thread can atomically request access to a slice of the Vec. Such access is granted, if no other thread is simultaneously holding the right to access an overlapping slice.
-
-Usage
-=====
-
-Add this to your Cargo.toml:
-
-.. code:: toml
-
-    [dependencies]
-    range-lock = "0.1"
-
-Example usage:
-
-.. code:: rust
-
-    use range_lock::RangeLock;
-    use std::sync::{Arc, Barrier};
-    use std::thread;
-
+#[test]
+fn test_rangelock() {
     // The data that will simultaneously be accessed from the threads.
     let data = vec![10, 11, 12, 13];
 
@@ -70,24 +60,6 @@ Example usage:
 
     // Check the data that has been modified by the threads.
     assert_eq!(data, vec![100, 11, 200, 13]);
+}
 
-
-TODO
-====
-
-The API of range-lock is currently very simple and only provides the bare minimum.
-
-The following new features might be candidates for future releases:
-
-* Optimize the range overlap search algorithm.
-* Sleeping lock, in case of lock contention.
-* Add support for arrays.
-* Add support for non-Vec/array iterables?
-
-
-License
-=======
-
-Copyright (c) 2021 Michael Buesch <m@bues.ch>
-
-Licensed under the Apache License version 2.0 or the MIT license, at your option.
+// vim: ts=4 sw=4 expandtab
