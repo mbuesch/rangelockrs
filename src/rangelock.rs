@@ -29,6 +29,22 @@ use std::{
     }
 };
 
+/// Multi-thread range lock for `Vec<T>`.
+///
+/// # Example
+///
+/// ```
+/// use range_lock::RangeLock;
+/// use std::sync::Arc;
+///
+/// let lock = Arc::new(RangeLock::new(vec![1, 2, 3, 4, 5]));
+///
+/// let mut guard = lock.try_lock(2..4).expect("Failed to lock 2..4");
+/// assert_eq!(guard[0], 3);
+/// guard[0] = 100;
+/// assert_eq!(guard[0], 100);
+/// assert_eq!(guard[1], 4);
+/// ```
 #[derive(Debug)]
 pub struct RangeLock<T> {
     ranges: Mutex<HashSet<Range<usize>>>,
@@ -43,6 +59,8 @@ unsafe impl<T> Sync for RangeLock<T> {}
 
 impl<'a, T> RangeLock<T> {
     /// Construct a new RangeLock.
+    ///
+    /// * `data`: The data Vec to protect.
     pub fn new(data: Vec<T>) -> RangeLock<T> {
         RangeLock {
             ranges: Mutex::new(HashSet::new()),
@@ -50,6 +68,7 @@ impl<'a, T> RangeLock<T> {
         }
     }
 
+    /// Get the length (in bytes) of the embedded data.
     #[inline]
     fn data_len(&self) -> usize {
         // SAFETY: Multithreaded access is safe. len cannot change.
@@ -57,12 +76,19 @@ impl<'a, T> RangeLock<T> {
     }
 
     /// Unwrap the RangeLock into the contained data.
+    /// This method consumes self.
     pub fn into_inner(self) -> Vec<T> {
         debug_assert!(self.ranges.lock().unwrap().is_empty());
         self.data.into_inner()
     }
 
-    /// Try to lock the given data range.
+    /// Try to lock the given data `range`.
+    ///
+    /// * On success: Returns a `RangeLockGuard` that can be used to access the locked region.
+    ///               Dereferencing `RangeLockGuard` yields a slice of the `data`.
+    /// * On failure: Returns TryLockError::WouldBlock, if the range is contended.
+    ///               The locking attempt may be retried by the caller upon contention.
+    ///               Returns TryLockError::Poisoned, if the lock is poisoned.
     pub fn try_lock(&'a self, range: impl RangeBounds<usize>) -> TryLockResult<RangeLockGuard<'a, T>> {
         let data_len = self.data_len();
         let (range_start, range_end) = get_bounds(&range, data_len);
@@ -92,23 +118,31 @@ impl<'a, T> RangeLock<T> {
         }
     }
 
+    /// Unlock a range.
     fn unlock(&self, range: &Range<usize>) {
         let mut ranges = self.ranges.lock()
             .expect("RangeLock: Failed to take ranges mutex.");
         ranges.remove(range);
     }
 
-    // SAFETY: See get_mut_slice().
+    /// Get an immutable slice to the specified range.
+    ///
+    /// # SAFETY
+    ///
+    /// See get_mut_slice().
     #[inline]
     unsafe fn get_slice(&self, range: &Range<usize>) -> &[T] {
         &(*self.data.get())[range.clone()]
     }
 
-    // SAFETY:
-    // The caller must ensure that:
-    // * No overlapping slices must coexist on multiple threads.
-    // * Immutable slices to overlapping ranges may only coexist on a single thread.
-    // * Immutable and mutable slices must not coexist.
+    /// Get a mutable slice to the specified range.
+    ///
+    /// # SAFETY
+    ///
+    /// The caller must ensure that:
+    /// * No overlapping slices must coexist on multiple threads.
+    /// * Immutable slices to overlapping ranges may only coexist on a single thread.
+    /// * Immutable and mutable slices must not coexist.
     #[inline]
     unsafe fn get_mut_slice(&self, range: &Range<usize>) -> &mut [T] {
         let cptr = self.get_slice(range) as *const [T];
@@ -117,6 +151,7 @@ impl<'a, T> RangeLock<T> {
     }
 }
 
+/// Lock guard variable.
 #[derive(Debug)]
 pub struct RangeLockGuard<'a, T> {
     lock:   &'a RangeLock<T>,

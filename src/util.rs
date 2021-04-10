@@ -16,6 +16,8 @@ use std::{
     },
 };
 
+/// Get the `(start, end)` bounds from a `RangeBounds<usize>` trait.
+/// `start` is inclusive and `end` is exclusive.
 #[inline]
 pub fn get_bounds(range: &impl RangeBounds<usize>, length: usize) -> (usize, usize) {
     let start = match range.start_bound() {
@@ -35,6 +37,8 @@ pub fn get_bounds(range: &impl RangeBounds<usize>, length: usize) -> (usize, usi
     (start, end)
 }
 
+/// Check if `range` overlaps any range in `ranges`.
+#[inline]
 pub fn overlaps_any(ranges: &HashSet<Range<usize>>,
                     range:  &impl RangeBounds<usize>) -> bool {
     let (start, end) = get_bounds(range, usize::MAX);
