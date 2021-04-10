@@ -7,6 +7,10 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //
 
+use crate::util::{
+    get_bounds,
+    overlaps_any,
+};
 use std::{
     cell::UnsafeCell,
     collections::HashSet,
@@ -14,6 +18,7 @@ use std::{
         Deref,
         DerefMut,
         Range,
+        RangeBounds,
     },
     sync::{
         LockResult,
@@ -36,16 +41,6 @@ pub struct RangeLock<T> {
 // The lock ensures that access to the data is strictly serialized.
 unsafe impl<T> Sync for RangeLock<T> {}
 
-fn overlaps_any(ranges: &HashSet<Range<usize>>,
-                range:  &Range<usize>) -> bool {
-    for r in ranges {
-        if range.end > r.start && range.start < r.end {
-            return true;
-        }
-    }
-    false
-}
-
 impl<'a, T> RangeLock<T> {
     /// Construct a new RangeLock.
     pub fn new(data: Vec<T>) -> RangeLock<T> {
@@ -55,6 +50,12 @@ impl<'a, T> RangeLock<T> {
         }
     }
 
+    #[inline]
+    fn data_len(&self) -> usize {
+        // SAFETY: Multithreaded access is safe. len cannot change.
+        unsafe { (*self.data.get()).len() }
+    }
+
     /// Unwrap the RangeLock into the contained data.
     pub fn into_inner(self) -> Vec<T> {
         debug_assert!(self.ranges.lock().unwrap().is_empty());
@@ -62,17 +63,32 @@ impl<'a, T> RangeLock<T> {
     }
 
     /// Try to lock the given data range.
-    pub fn try_lock(&'a self, range: Range<usize>) -> TryLockResult<RangeLockGuard<'a, T>> {
-        if let LockResult::Ok(mut ranges) = self.ranges.lock() {
-            if overlaps_any(&*ranges, &range) {
-                TryLockResult::Err(TryLockError::WouldBlock)
+    pub fn try_lock(&'a self, range: impl RangeBounds<usize>) -> TryLockResult<RangeLockGuard<'a, T>> {
+        let data_len = self.data_len();
+        let (range_start, range_end) = get_bounds(&range, data_len);
+        if range_start >= data_len || range_end > data_len {
+            panic!("Range is out of bounds.");
+        }
+        if range_start > range_end {
+            panic!("Invalid range. Start is bigger than end.");
+        }
+        let range = range_start..range_end;
+
+        if range_start < range_end {
+            if let LockResult::Ok(mut ranges) = self.ranges.lock() {
+                if overlaps_any(&*ranges, &range) {
+                    TryLockResult::Err(TryLockError::WouldBlock)
+                } else {
+                    ranges.insert(range.clone());
+                    TryLockResult::Ok(RangeLockGuard::new(self, range))
+                }
             } else {
-                ranges.insert(range.clone());
-                TryLockResult::Ok(RangeLockGuard::new(self, range))
+                TryLockResult::Err(TryLockError::Poisoned(
+                    PoisonError::new(RangeLockGuard::new(self, range))))
             }
         } else {
-            TryLockResult::Err(TryLockError::Poisoned(
-                PoisonError::new(RangeLockGuard::new(self, range))))
+            // Empty range.
+            TryLockResult::Ok(RangeLockGuard::new(self, range))
         }
     }
 
@@ -159,11 +175,54 @@ mod tests {
 
     #[test]
     fn test_base() {
+        {
+            // Range
+            let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+            let mut g = a.try_lock(2..4).unwrap();
+            assert_eq!(g[0..2], [3, 4]);
+            g[1] = 10;
+            assert_eq!(g[0..2], [3, 10]);
+        }
+        {
+            // RangeInclusive
+            let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+            let g = a.try_lock(2..=4).unwrap();
+            assert_eq!(g[0..3], [3, 4, 5]);
+        }
+        {
+            // RangeTo
+            let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+            let g = a.try_lock(..4).unwrap();
+            assert_eq!(g[0..4], [1, 2, 3, 4]);
+        }
+        {
+            // RangeToInclusive
+            let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+            let g = a.try_lock(..=4).unwrap();
+            assert_eq!(g[0..5], [1, 2, 3, 4, 5]);
+        }
+        {
+            // RangeFrom
+            let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+            let g = a.try_lock(2..).unwrap();
+            assert_eq!(g[0..4], [3, 4, 5, 6]);
+        }
+        {
+            // RangeFull
+            let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+            let g = a.try_lock(..).unwrap();
+            assert_eq!(g[0..6], [1, 2, 3, 4, 5, 6]);
+        }
+    }
+
+    #[test]
+    fn test_empty_range() {
+        // Empty range doesn't cause conflicts.
         let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
-        let mut g = a.try_lock(2..4).unwrap();
-        assert_eq!(g[0..2], [3, 4]);
-        g[1] = 10;
-        assert_eq!(g[0..2], [3, 10]);
+        let g0 = a.try_lock(2..2).unwrap();
+        assert_eq!(g0[0..0], []);
+        let g1 = a.try_lock(2..2).unwrap();
+        assert_eq!(g1[0..0], []);
     }
 
     #[test]
@@ -251,22 +310,6 @@ mod tests {
         });
         j1.join().expect("Thread 1 panicked.");
         j0.join().expect("Thread 0 panicked.");
-    }
-
-    #[test]
-    fn test_overlaps_any() {
-        let mut a = HashSet::new();
-        a.insert(0..1);
-        a.insert(4..6);
-        assert!(overlaps_any(&a, &(0..1)));
-        assert!(!overlaps_any(&a, &(1..2)));
-        assert!(!overlaps_any(&a, &(1..3)));
-        assert!(!overlaps_any(&a, &(2..4)));
-        assert!(overlaps_any(&a, &(3..5)));
-        assert!(overlaps_any(&a, &(4..6)));
-        assert!(overlaps_any(&a, &(5..7)));
-        assert!(!overlaps_any(&a, &(6..8)));
-        assert!(!overlaps_any(&a, &(7..9)));
     }
 }
 

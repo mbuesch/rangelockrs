@@ -8,6 +8,7 @@
 //
 
 mod rangelock;
+mod util;
 
 pub use rangelock::{
     RangeLock,
