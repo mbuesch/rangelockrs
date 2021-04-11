@@ -213,10 +213,14 @@ mod tests {
         {
             // Range
             let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
-            let mut g = a.try_lock(2..4).unwrap();
-            assert_eq!(g[0..2], [3, 4]);
-            g[1] = 10;
-            assert_eq!(g[0..2], [3, 10]);
+            {
+                let mut g = a.try_lock(2..4).unwrap();
+                assert!(!a.ranges.lock().unwrap().is_empty());
+                assert_eq!(g[0..2], [3, 4]);
+                g[1] = 10;
+                assert_eq!(g[0..2], [3, 10]);
+            }
+            assert!(a.ranges.lock().unwrap().is_empty());
         }
         {
             // RangeInclusive
@@ -255,8 +259,10 @@ mod tests {
         // Empty range doesn't cause conflicts.
         let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
         let g0 = a.try_lock(2..2).unwrap();
+        assert!(a.ranges.lock().unwrap().is_empty());
         assert_eq!(g0[0..0], []);
         let g1 = a.try_lock(2..2).unwrap();
+        assert!(a.ranges.lock().unwrap().is_empty());
         assert_eq!(g1[0..0], []);
     }
 
@@ -302,6 +308,7 @@ mod tests {
         let j0 = thread::spawn(move || {
             {
                 let mut g = b.try_lock(2..4).unwrap();
+                assert!(!b.ranges.lock().unwrap().is_empty());
                 assert_eq!(g[0..2], [3, 4]);
                 g[1] = 10;
                 assert_eq!(g[0..2], [3, 10]);
@@ -311,6 +318,7 @@ mod tests {
         let j1 = thread::spawn(move || {
             {
                 let g = c.try_lock(4..6).unwrap();
+                assert!(!c.ranges.lock().unwrap().is_empty());
                 assert_eq!(g[0..2], [5, 6]);
             }
             ba1.wait();
@@ -319,6 +327,7 @@ mod tests {
         });
         j1.join().expect("Thread 1 panicked.");
         j0.join().expect("Thread 0 panicked.");
+        assert!(a.ranges.lock().unwrap().is_empty());
     }
 
     struct NoSyncStruct(RefCell<u32>); // No Sync auto-trait.
@@ -337,14 +346,17 @@ mod tests {
         let ba1 = Arc::clone(&ba0);
         let j0 = thread::spawn(move || {
             let _g = b.try_lock(0..1).unwrap();
+            assert!(!b.ranges.lock().unwrap().is_empty());
             ba0.wait();
         });
         let j1 = thread::spawn(move || {
             let _g = c.try_lock(1..2).unwrap();
+            assert!(!c.ranges.lock().unwrap().is_empty());
             ba1.wait();
         });
         j1.join().expect("Thread 1 panicked.");
         j0.join().expect("Thread 0 panicked.");
+        assert!(a.ranges.lock().unwrap().is_empty());
     }
 }
 
