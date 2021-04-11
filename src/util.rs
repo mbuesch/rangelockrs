@@ -55,6 +55,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_get_bounds() {
+        assert_eq!(get_bounds(&(10..20), usize::MAX), (10, 20));
+        assert_eq!(get_bounds(&(10..20), 0), (10, 20));
+        assert_eq!(get_bounds(&(10..=20), 0), (10, 21));
+        assert_eq!(get_bounds(&(..20), 0), (0, 20));
+        assert_eq!(get_bounds(&(..=20), 0), (0, 21));
+        assert_eq!(get_bounds(&(10..), 42), (10, 42));
+        assert_eq!(get_bounds(&(..), 42), (0, 42));
+    }
+
+    #[test]
+    #[should_panic(expected="< usize::MAX")]
+    fn test_get_bounds_end_panic() {
+        get_bounds(&(..=usize::MAX), 0);
+    }
+
+    #[test]
     fn test_overlaps_any() {
         let mut a = HashSet::new();
         a.insert(0..1);
