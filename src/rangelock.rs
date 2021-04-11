@@ -151,7 +151,10 @@ impl<'a, T> RangeLock<T> {
     }
 }
 
-/// Lock guard variable.
+/// Lock guard variable type.
+///
+/// The Deref and DerefMut traits are implemented for this struct.
+/// See the documentation of `RangeLock` for usage examples of `RangeLockGuard`.
 #[derive(Debug)]
 pub struct RangeLockGuard<'a, T> {
     lock:   &'a RangeLock<T>,
