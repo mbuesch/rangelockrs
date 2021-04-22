@@ -144,6 +144,7 @@ impl<'a, T> RangeLock<T> {
     /// * Immutable slices to overlapping ranges may only coexist on a single thread.
     /// * Immutable and mutable slices must not coexist.
     #[inline]
+    #[allow(clippy::mut_from_ref)] // Slices won't overlap. See SAFETY.
     unsafe fn get_mut_slice(&self, range: &Range<usize>) -> &mut [T] {
         let cptr = self.get_slice(range) as *const [T];
         let mut_slice = (cptr as *mut [T]).as_mut();
