@@ -55,7 +55,11 @@ pub struct RangeLock<T> {
 // It is safe to access RangeLock and the contained data (via RangeLockGuard)
 // from multiple threads simultaneously.
 // The lock ensures that access to the data is strictly serialized.
-unsafe impl<T> Sync for RangeLock<T> {}
+// T must be Send-able to other threads.
+unsafe impl<T> Sync for RangeLock<T>
+where
+    T: Send
+{ }
 
 impl<'a, T> RangeLock<T> {
     /// Construct a new RangeLock.
