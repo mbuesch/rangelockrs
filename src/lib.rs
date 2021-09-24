@@ -8,11 +8,17 @@
 //
 
 mod rangelock;
+mod reprangelock;
 mod util;
 
 pub use rangelock::{
     RangeLock,
     RangeLockGuard,
+};
+
+pub use reprangelock::{
+    RepRangeLock,
+    RepRangeLockGuard,
 };
 
 // vim: ts=4 sw=4 expandtab

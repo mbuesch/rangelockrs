@@ -72,9 +72,9 @@ impl<'a, T> RangeLock<T> {
         }
     }
 
-    /// Get the length (in bytes) of the embedded data.
+    /// Get the length (in number of elements) of the embedded Vec.
     #[inline]
-    fn data_len(&self) -> usize {
+    pub fn data_len(&self) -> usize {
         // SAFETY: Multithreaded access is safe. len cannot change.
         unsafe { (*self.data.get()).len() }
     }
