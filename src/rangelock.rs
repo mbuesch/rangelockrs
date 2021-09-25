@@ -81,6 +81,7 @@ impl<'a, T> RangeLock<T> {
 
     /// Unwrap the RangeLock into the contained data.
     /// This method consumes self.
+    #[inline]
     pub fn into_inner(self) -> Vec<T> {
         debug_assert!(self.ranges.lock().unwrap().is_empty());
         self.data.into_inner()
@@ -167,6 +168,7 @@ pub struct RangeLockGuard<'a, T> {
 }
 
 impl<'a, T> RangeLockGuard<'a, T> {
+    #[inline]
     fn new(lock:    &'a RangeLock<T>,
            range:   Range<usize>) -> RangeLockGuard<'a, T> {
         RangeLockGuard {
