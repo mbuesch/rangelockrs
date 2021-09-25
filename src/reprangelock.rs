@@ -199,7 +199,10 @@ impl<'a, T> RepRangeLock<T> {
         let prev = unsafe { self.locked_offsets.get_unchecked(idx) }
             .fetch_or(mask, Ordering::AcqRel);
         if prev & mask == 0 {
-            TryLockResult::Ok(RepRangeLockGuard::new(self, cycle_offset))
+            // Multiply cannot overflow due to slice_len, cycle_len and cycle_offset checks.
+            let cycle_offset_slices = self.slice_len * cycle_offset;
+            // Successfully acquired the lock.
+            TryLockResult::Ok(RepRangeLockGuard::new(self, cycle_offset, cycle_offset_slices))
         } else {
             // Already locked by another thread.
             TryLockResult::Err(TryLockError::WouldBlock)
@@ -224,14 +227,11 @@ impl<'a, T> RepRangeLock<T> {
     /// See get_mut_slice().
     #[inline]
     unsafe fn get_slice(&self,
-                        cycle_offset: usize,
+                        cycle_offset_slices: usize,
                         cycle: usize) -> &[T] {
         if let Some(cycle_elemidx) = self.cycle_num_elems.checked_mul(cycle) {
-            let slice_len = self.slice_len;
-            // Cannot overflow due to checks in new() and try_lock().
-            let offset = slice_len * cycle_offset;
-            if let Some(begin) = cycle_elemidx.checked_add(offset) {
-                if let Some(end) = begin.checked_add(slice_len) {
+            if let Some(begin) = cycle_elemidx.checked_add(cycle_offset_slices) {
+                if let Some(end) = begin.checked_add(self.slice_len) {
                     let dataptr = self.data.get();
                     if end <= (*dataptr).len() {
                         return &(*dataptr)[begin..end];
@@ -253,9 +253,9 @@ impl<'a, T> RepRangeLock<T> {
     #[inline]
     #[allow(clippy::mut_from_ref)] // Slices won't overlap. See SAFETY.
     unsafe fn get_mut_slice(&self,
-                            cycle_offset: usize,
+                            cycle_offset_slices: usize,
                             cycle: usize) -> &mut [T] {
-        let cptr = self.get_slice(cycle_offset, cycle) as *const [T];
+        let cptr = self.get_slice(cycle_offset_slices, cycle) as *const [T];
         let mut_slice = (cptr as *mut [T]).as_mut();
         // SAFETY: The pointer is never null, because it has been casted from a slice.
         mut_slice.unwrap_or_else(|| unreachable_unchecked())
@@ -268,17 +268,20 @@ impl<'a, T> RepRangeLock<T> {
 /// See the documentation of `RepRangeLock` for usage examples of `RepRangeLockGuard`.
 #[derive(Debug)]
 pub struct RepRangeLockGuard<'a, T> {
-    lock:           &'a RepRangeLock<T>,
-    cycle_offset:   usize,
+    lock:                   &'a RepRangeLock<T>,
+    cycle_offset:           usize,
+    cycle_offset_slices:    usize,
 }
 
 impl<'a, T> RepRangeLockGuard<'a, T> {
     #[inline]
-    fn new(lock:            &'a RepRangeLock<T>,
-           cycle_offset:    usize) -> RepRangeLockGuard<'a, T> {
+    fn new(lock:                &'a RepRangeLock<T>,
+           cycle_offset:        usize,
+           cycle_offset_slices: usize) -> RepRangeLockGuard<'a, T> {
         RepRangeLockGuard {
             lock,
             cycle_offset,
+            cycle_offset_slices,
         }
     }
 }
@@ -296,7 +299,7 @@ impl<'a, T> Index<usize> for RepRangeLockGuard<'a, T> {
     #[inline]
     fn index(&self, cycle: usize) -> &Self::Output {
         // SAFETY: See index_mut().
-        unsafe { self.lock.get_slice(self.cycle_offset, cycle) }
+        unsafe { self.lock.get_slice(self.cycle_offset_slices, cycle) }
     }
 }
 
@@ -312,7 +315,7 @@ impl<'a, T> IndexMut<usize> for RepRangeLockGuard<'a, T> {
         // can be constructed.
         // The compiler ensures that the DerefMut result cannot be used,
         // if there's also an immutable Deref result.
-        unsafe { self.lock.get_mut_slice(self.cycle_offset, cycle) }
+        unsafe { self.lock.get_mut_slice(self.cycle_offset_slices, cycle) }
     }
 }
 
