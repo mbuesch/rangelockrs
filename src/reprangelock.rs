@@ -9,6 +9,7 @@
 
 use std::{
     cell::UnsafeCell,
+    hint::unreachable_unchecked,
     ops::{
         Index,
         IndexMut,
@@ -252,7 +253,8 @@ impl<'a, T> RepRangeLock<T> {
                             cycle: usize) -> &mut [T] {
         let cptr = self.get_slice(cycle_offset, cycle) as *const [T];
         let mut_slice = (cptr as *mut [T]).as_mut();
-        mut_slice.unwrap() // The pointer is never null.
+        // The pointer is never null.
+        mut_slice.unwrap_or_else(|| unreachable_unchecked())
     }
 }
 
