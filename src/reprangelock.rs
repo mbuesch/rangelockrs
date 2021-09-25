@@ -195,7 +195,9 @@ impl<'a, T> RepRangeLock<T> {
         }
         let idx = cycle_offset / 32;
         let mask = 1 << (cycle_offset % 32);
-        let prev = self.locked_offsets[idx].fetch_or(mask, Ordering::AcqRel);
+        // SAFETY: cycle_offset has been checked against cycle_len.
+        let prev = unsafe { self.locked_offsets.get_unchecked(idx) }
+            .fetch_or(mask, Ordering::AcqRel);
         if prev & mask == 0 {
             TryLockResult::Ok(RepRangeLockGuard::new(self, cycle_offset))
         } else {
@@ -209,7 +211,9 @@ impl<'a, T> RepRangeLock<T> {
     fn unlock(&self, cycle_offset: usize) {
         let idx = cycle_offset / 32;
         let mask = 1 << (cycle_offset % 32);
-        let prev = self.locked_offsets[idx].fetch_xor(mask, Ordering::Release);
+        // SAFETY: cycle_offset has been checked against cycle_len in try_lock().
+        let prev = unsafe { self.locked_offsets.get_unchecked(idx) }
+            .fetch_xor(mask, Ordering::Release);
         debug_assert!(prev & mask != 0);
     }
 
@@ -253,7 +257,7 @@ impl<'a, T> RepRangeLock<T> {
                             cycle: usize) -> &mut [T] {
         let cptr = self.get_slice(cycle_offset, cycle) as *const [T];
         let mut_slice = (cptr as *mut [T]).as_mut();
-        // The pointer is never null.
+        // SAFETY: The pointer is never null, because it has been casted from a slice.
         mut_slice.unwrap_or_else(|| unreachable_unchecked())
     }
 }

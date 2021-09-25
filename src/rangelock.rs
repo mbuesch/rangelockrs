@@ -154,7 +154,7 @@ impl<'a, T> RangeLock<T> {
     unsafe fn get_mut_slice(&self, range: &Range<usize>) -> &mut [T] {
         let cptr = self.get_slice(range) as *const [T];
         let mut_slice = (cptr as *mut [T]).as_mut();
-        // The pointer is never null.
+        // SAFETY: The pointer is never null, because it has been casted from a slice.
         mut_slice.unwrap_or_else(|| unreachable_unchecked())
     }
 }
