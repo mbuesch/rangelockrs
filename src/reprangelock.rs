@@ -192,9 +192,6 @@ impl<'a, T> RepRangeLock<T> {
         if cycle_offset >= self.cycle_len {
             panic!("Invalid cycle_offset. It must be 0 <= cycle_offset < cycle_len.");
         }
-        if self.slice_len.checked_mul(cycle_offset).is_none() {
-            panic!("RepRangeLock cycle_offset overflow.");
-        }
         let idx = cycle_offset / 32;
         let mask = 1 << (cycle_offset % 32);
         let prev = self.locked_offsets[idx].fetch_or(mask, Ordering::AcqRel);
@@ -225,9 +222,11 @@ impl<'a, T> RepRangeLock<T> {
                         cycle_offset: usize,
                         cycle: usize) -> &[T] {
         if let Some(cycle_elemidx) = self.cycle_num_elems.checked_mul(cycle) {
-            let offset = self.slice_len * cycle_offset; // mul checked in try_lock().
+            let slice_len = self.slice_len;
+            // Cannot overflow due to checks in new() and try_lock().
+            let offset = slice_len * cycle_offset;
             if let Some(begin) = cycle_elemidx.checked_add(offset) {
-                if let Some(end) = begin.checked_add(self.slice_len) {
+                if let Some(end) = begin.checked_add(slice_len) {
                     let dataptr = self.data.get();
                     if end <= (*dataptr).len() {
                         return &(*dataptr)[begin..end];
