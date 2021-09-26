@@ -3,7 +3,11 @@ range-lock - Multithread range lock for Vec
 
 `https://bues.ch/ <https://bues.ch/>`_
 
-Provides multi-threaded access to a single Vec<T> instance. Any thread can atomically request access to a slice of the Vec. Such access is granted, if no other thread is simultaneously holding the right to access an overlapping slice.
+`https://bues.ch/cgit/rangelockrs.git <https://bues.ch/cgit/rangelockrs.git>`_
+
+This crate provides locks/mutexes for multi-threaded access to a single Vec<T> instance.
+
+Any thread can atomically request access to a slice of the Vec. Such access is granted, if no other thread is simultaneously holding the right to access an overlapping slice.
 
 
 Usage
@@ -14,27 +18,27 @@ Add this to your Cargo.toml:
 .. code:: toml
 
     [dependencies]
-    range-lock = "0.1"
+    range-lock = "0.2"
 
 
-RangeLock example usage
------------------------
+VecRangeLock example usage
+--------------------------
 
-General purpose RangeLock:
+General purpose VecRangeLock:
 
 .. code:: rust
 
     extern crate range_lock;
-    use range_lock::RangeLock;
+    use range_lock::VecRangeLock;
     use std::sync::{Arc, Barrier};
     use std::thread;
 
     // The data that will simultaneously be accessed from the threads.
     let data = vec![10, 11, 12, 13];
 
-    // Embed the data in a RangeLock
+    // Embed the data in a VecRangeLock
     // and clone atomic references to it for the threads.
-    let data_lock0 = Arc::new(RangeLock::new(data));
+    let data_lock0 = Arc::new(VecRangeLock::new(data));
     let data_lock1 = Arc::clone(&data_lock0);
     let data_lock2 = Arc::clone(&data_lock0);
 
@@ -79,18 +83,19 @@ General purpose RangeLock:
     assert_eq!(data, vec![100, 11, 200, 13]);
 
 
-RepRangeLock example usage
---------------------------
+RepVecRangeLock example usage
+-----------------------------
 
-The RepRangeLock is a restricted range lock, that provides interleaved patterns of slices to the threads.
+The RepVecRangeLock is a restricted range lock, that provides access to interleaved patterns of slices to the threads.
 
-Locking a RepRangeLock is more lightweight than locking a RangeLock.
+Locking a RepVecRangeLock is more lightweight than locking a VecRangeLock.
+The threads can not freely choose slice ranges, but only choose a repeating slice pattern by specifying a pattern offset.
 
 Please see the example below.
 
 .. code:: rust
 
-    use range_lock::RepRangeLock;
+    use range_lock::RepVecRangeLock;
     use std::sync::Arc;
     use std::thread;
 
@@ -100,9 +105,9 @@ Please see the example below.
     //                |      |      |
     //          offset-0  offset-1  offset-2
 
-    let lock = Arc::new(RepRangeLock::new(data,
-                                          2,    // slice_len: Each slice has 2 elements.
-                                          3));  // cycle_len: Each cycle has 3 slices (offsets).
+    let lock = Arc::new(RepVecRangeLock::new(data,
+                                             2,    // slice_len: Each slice has 2 elements.
+                                             3));  // cycle_len: Each cycle has 3 slices (offsets).
     let lock0 = Arc::clone(&lock);
     let lock1 = Arc::clone(&lock);
     let lock2 = Arc::clone(&lock);

@@ -48,8 +48,8 @@ use std::{
 /// //          offset-0  offset-1  offset-2
 ///
 /// let lock = Arc::new(RepVecRangeLock::new(data,
-///                                       2,    // slice_len: Each slice has 2 elements.
-///                                       3));  // cycle_len: Each cycle has 3 slices (offsets).
+///                                          2,    // slice_len: Each slice has 2 elements.
+///                                          3));  // cycle_len: Each cycle has 3 slices (offsets).
 /// let lock0 = Arc::clone(&lock);
 /// let lock1 = Arc::clone(&lock);
 /// let lock2 = Arc::clone(&lock);
