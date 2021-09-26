@@ -138,6 +138,9 @@ impl<'a, T> VecRangeLock<T> {
     /// See get_mut_slice().
     #[inline]
     unsafe fn get_slice(&self, range: &Range<usize>) -> &[T] {
+        // SAFETY: We trust the slicing machinery of Vec to work correctly.
+        //         It must return the slice range that we requested.
+        //         Otherwise our non-overlap guarantees are gone.
         &(*self.data.get())[range.clone()]
     }
 

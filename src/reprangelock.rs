@@ -234,6 +234,9 @@ impl<'a, T> RepVecRangeLock<T> {
                 if let Some(end) = begin.checked_add(self.slice_len) {
                     let dataptr = self.data.get();
                     if end <= (*dataptr).len() {
+                        // SAFETY: We trust the slicing machinery of Vec to work correctly.
+                        //         It must return the slice range that we requested.
+                        //         Otherwise our non-overlap guarantees are gone.
                         return &(*dataptr)[begin..end];
                     }
                 }
