@@ -7,7 +7,8 @@ range-lock - Multithread range lock for Vec
 
 This crate provides locks/mutexes for multi-threaded access to a single Vec<T> instance.
 
-Any thread can atomically request access to a slice of the Vec. Such access is granted, if no other thread is simultaneously holding the right to access an overlapping slice.
+Any thread can request exclusive access to a slice of the Vec.
+Such access is granted, if no other thread is simultaneously holding the permission to access an overlapping slice.
 
 
 Usage
