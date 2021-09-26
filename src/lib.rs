@@ -12,13 +12,13 @@ mod reprangelock;
 mod util;
 
 pub use rangelock::{
-    RangeLock,
-    RangeLockGuard,
+    VecRangeLock,
+    VecRangeLockGuard,
 };
 
 pub use reprangelock::{
-    RepRangeLock,
-    RepRangeLockGuard,
+    RepVecRangeLock,
+    RepVecRangeLockGuard,
 };
 
 // vim: ts=4 sw=4 expandtab

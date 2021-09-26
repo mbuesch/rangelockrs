@@ -8,7 +8,7 @@
 //
 
 extern crate range_lock;
-use range_lock::RepRangeLock;
+use range_lock::RepVecRangeLock;
 use std::sync::{Arc, Barrier, TryLockResult};
 use std::thread;
 
@@ -19,9 +19,9 @@ fn test_rangelock() {
                     20, 21, 22, 23,
                     30, 31, 32, 33];
 
-    // Embed the data in a RangeLock
+    // Embed the data in a VecRangeLock
     // and clone atomic references to it for the threads.
-    let data_lock0 = Arc::new(RepRangeLock::new(data, 1, 4));
+    let data_lock0 = Arc::new(RepVecRangeLock::new(data, 1, 4));
     let data_lock1 = Arc::clone(&data_lock0);
     let data_lock2 = Arc::clone(&data_lock0);
 
@@ -79,7 +79,7 @@ fn test_conflict() {
                     20, 21, 22, 23,
                     30, 31, 32, 33];
 
-    let data_lock0 = Arc::new(RepRangeLock::new(data, 1, 4));
+    let data_lock0 = Arc::new(RepVecRangeLock::new(data, 1, 4));
     let data_lock1 = Arc::clone(&data_lock0);
 
     let barrier0 = Arc::new(Barrier::new(2));

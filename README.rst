@@ -168,7 +168,6 @@ The following new features might be candidates for future releases:
 * Optimize the range overlap search algorithm.
 * Sleeping lock, in case of lock contention.
 * Add support for arrays.
-* Add support for non-Vec/array iterables?
 
 
 License

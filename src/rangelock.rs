@@ -35,10 +35,10 @@ use std::{
 /// # Example
 ///
 /// ```
-/// use range_lock::RangeLock;
+/// use range_lock::VecRangeLock;
 /// use std::sync::Arc;
 ///
-/// let lock = Arc::new(RangeLock::new(vec![1, 2, 3, 4, 5]));
+/// let lock = Arc::new(VecRangeLock::new(vec![1, 2, 3, 4, 5]));
 ///
 /// let mut guard = lock.try_lock(2..4).expect("Failed to lock 2..4");
 /// assert_eq!(guard[0], 3);
@@ -47,27 +47,27 @@ use std::{
 /// assert_eq!(guard[1], 4);
 /// ```
 #[derive(Debug)]
-pub struct RangeLock<T> {
+pub struct VecRangeLock<T> {
     ranges: Mutex<HashSet<Range<usize>>>,
     data:   UnsafeCell<Vec<T>>,
 }
 
 // SAFETY:
-// It is safe to access RangeLock and the contained data (via RangeLockGuard)
+// It is safe to access VecRangeLock and the contained data (via VecRangeLockGuard)
 // from multiple threads simultaneously.
 // The lock ensures that access to the data is strictly serialized.
 // T must be Send-able to other threads.
-unsafe impl<T> Sync for RangeLock<T>
+unsafe impl<T> Sync for VecRangeLock<T>
 where
     T: Send
 { }
 
-impl<'a, T> RangeLock<T> {
-    /// Construct a new RangeLock.
+impl<'a, T> VecRangeLock<T> {
+    /// Construct a new VecRangeLock.
     ///
     /// * `data`: The data Vec to protect.
-    pub fn new(data: Vec<T>) -> RangeLock<T> {
-        RangeLock {
+    pub fn new(data: Vec<T>) -> VecRangeLock<T> {
+        VecRangeLock {
             ranges: Mutex::new(HashSet::new()),
             data:   UnsafeCell::new(data),
         }
@@ -80,7 +80,7 @@ impl<'a, T> RangeLock<T> {
         unsafe { (*self.data.get()).len() }
     }
 
-    /// Unwrap the RangeLock into the contained data.
+    /// Unwrap the VecRangeLock into the contained data.
     /// This method consumes self.
     #[inline]
     pub fn into_inner(self) -> Vec<T> {
@@ -90,12 +90,12 @@ impl<'a, T> RangeLock<T> {
 
     /// Try to lock the given data `range`.
     ///
-    /// * On success: Returns a `RangeLockGuard` that can be used to access the locked region.
-    ///               Dereferencing `RangeLockGuard` yields a slice of the `data`.
+    /// * On success: Returns a `VecRangeLockGuard` that can be used to access the locked region.
+    ///               Dereferencing `VecRangeLockGuard` yields a slice of the `data`.
     /// * On failure: Returns TryLockError::WouldBlock, if the range is contended.
     ///               The locking attempt may be retried by the caller upon contention.
     ///               Returns TryLockError::Poisoned, if the lock is poisoned.
-    pub fn try_lock(&'a self, range: impl RangeBounds<usize>) -> TryLockResult<RangeLockGuard<'a, T>> {
+    pub fn try_lock(&'a self, range: impl RangeBounds<usize>) -> TryLockResult<VecRangeLockGuard<'a, T>> {
         let data_len = self.data_len();
         let (range_start, range_end) = get_bounds(&range, data_len);
         if range_start >= data_len || range_end > data_len {
@@ -112,22 +112,22 @@ impl<'a, T> RangeLock<T> {
                     TryLockResult::Err(TryLockError::WouldBlock)
                 } else {
                     ranges.insert(range.clone());
-                    TryLockResult::Ok(RangeLockGuard::new(self, range))
+                    TryLockResult::Ok(VecRangeLockGuard::new(self, range))
                 }
             } else {
                 TryLockResult::Err(TryLockError::Poisoned(
-                    PoisonError::new(RangeLockGuard::new(self, range))))
+                    PoisonError::new(VecRangeLockGuard::new(self, range))))
             }
         } else {
             // Empty range.
-            TryLockResult::Ok(RangeLockGuard::new(self, range))
+            TryLockResult::Ok(VecRangeLockGuard::new(self, range))
         }
     }
 
     /// Unlock a range.
     fn unlock(&self, range: &Range<usize>) {
         let mut ranges = self.ranges.lock()
-            .expect("RangeLock: Failed to take ranges mutex.");
+            .expect("VecRangeLock: Failed to take ranges mutex.");
         ranges.remove(range);
     }
 
@@ -162,32 +162,32 @@ impl<'a, T> RangeLock<T> {
 /// Lock guard variable type.
 ///
 /// The Deref and DerefMut traits are implemented for this struct.
-/// See the documentation of `RangeLock` for usage examples of `RangeLockGuard`.
+/// See the documentation of `VecRangeLock` for usage examples of `VecRangeLockGuard`.
 #[derive(Debug)]
-pub struct RangeLockGuard<'a, T> {
-    lock:   &'a RangeLock<T>,
+pub struct VecRangeLockGuard<'a, T> {
+    lock:   &'a VecRangeLock<T>,
     range:  Range<usize>,
 }
 
-impl<'a, T> RangeLockGuard<'a, T> {
+impl<'a, T> VecRangeLockGuard<'a, T> {
     #[inline]
-    fn new(lock:    &'a RangeLock<T>,
-           range:   Range<usize>) -> RangeLockGuard<'a, T> {
-        RangeLockGuard {
+    fn new(lock:    &'a VecRangeLock<T>,
+           range:   Range<usize>) -> VecRangeLockGuard<'a, T> {
+        VecRangeLockGuard {
             lock,
             range,
         }
     }
 }
 
-impl<'a, T> Drop for RangeLockGuard<'a, T> {
+impl<'a, T> Drop for VecRangeLockGuard<'a, T> {
     #[inline]
     fn drop(&mut self) {
         self.lock.unlock(&self.range);
     }
 }
 
-impl<'a, T> Deref for RangeLockGuard<'a, T> {
+impl<'a, T> Deref for VecRangeLockGuard<'a, T> {
     type Target = [T];
 
     #[inline]
@@ -197,7 +197,7 @@ impl<'a, T> Deref for RangeLockGuard<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for RangeLockGuard<'a, T> {
+impl<'a, T> DerefMut for VecRangeLockGuard<'a, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY:
@@ -224,7 +224,7 @@ mod tests {
     fn test_base() {
         {
             // Range
-            let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+            let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
             {
                 let mut g = a.try_lock(2..4).unwrap();
                 assert!(!a.ranges.lock().unwrap().is_empty());
@@ -236,31 +236,31 @@ mod tests {
         }
         {
             // RangeInclusive
-            let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+            let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
             let g = a.try_lock(2..=4).unwrap();
             assert_eq!(g[0..3], [3, 4, 5]);
         }
         {
             // RangeTo
-            let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+            let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
             let g = a.try_lock(..4).unwrap();
             assert_eq!(g[0..4], [1, 2, 3, 4]);
         }
         {
             // RangeToInclusive
-            let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+            let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
             let g = a.try_lock(..=4).unwrap();
             assert_eq!(g[0..5], [1, 2, 3, 4, 5]);
         }
         {
             // RangeFrom
-            let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+            let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
             let g = a.try_lock(2..).unwrap();
             assert_eq!(g[0..4], [3, 4, 5, 6]);
         }
         {
             // RangeFull
-            let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+            let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
             let g = a.try_lock(..).unwrap();
             assert_eq!(g[0..6], [1, 2, 3, 4, 5, 6]);
         }
@@ -269,7 +269,7 @@ mod tests {
     #[test]
     fn test_empty_range() {
         // Empty range doesn't cause conflicts.
-        let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+        let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
         let g0 = a.try_lock(2..2).unwrap();
         assert!(a.ranges.lock().unwrap().is_empty());
         assert_eq!(g0[0..0], []);
@@ -281,7 +281,7 @@ mod tests {
     #[test]
     #[should_panic(expected="index out of bounds")]
     fn test_base_oob_read() {
-        let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+        let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
         let g = a.try_lock(2..4).unwrap();
         let _ = g[2];
     }
@@ -289,7 +289,7 @@ mod tests {
     #[test]
     #[should_panic(expected="index out of bounds")]
     fn test_base_oob_write() {
-        let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+        let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
         let mut g = a.try_lock(2..4).unwrap();
         g[2] = 10;
     }
@@ -297,7 +297,7 @@ mod tests {
     #[test]
     #[should_panic(expected="guard 1 panicked")]
     fn test_overlap0() {
-        let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+        let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
         let _g0 = a.try_lock(2..4).expect("guard 0 panicked");
         let _g1 = a.try_lock(3..5).expect("guard 1 panicked");
     }
@@ -305,14 +305,14 @@ mod tests {
     #[test]
     #[should_panic(expected="guard 0 panicked")]
     fn test_overlap1() {
-        let a = RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
+        let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
         let _g1 = a.try_lock(3..5).expect("guard 1 panicked");
         let _g0 = a.try_lock(2..4).expect("guard 0 panicked");
     }
 
     #[test]
     fn test_thread_no_overlap() {
-        let a = Arc::new(RangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]));
+        let a = Arc::new(VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]));
         let b = Arc::clone(&a);
         let c = Arc::clone(&a);
         let ba0 = Arc::new(Barrier::new(2));
@@ -346,7 +346,7 @@ mod tests {
 
     #[test]
     fn test_nosync() {
-        let a = Arc::new(RangeLock::new(vec![
+        let a = Arc::new(VecRangeLock::new(vec![
             NoSyncStruct(RefCell::new(1)),
             NoSyncStruct(RefCell::new(2)),
             NoSyncStruct(RefCell::new(3)),

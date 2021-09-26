@@ -37,7 +37,7 @@ use std::{
 /// # Example
 ///
 /// ```
-/// use range_lock::RepRangeLock;
+/// use range_lock::RepVecRangeLock;
 /// use std::sync::Arc;
 /// use std::thread;
 ///
@@ -47,7 +47,7 @@ use std::{
 /// //                |      |      |
 /// //          offset-0  offset-1  offset-2
 ///
-/// let lock = Arc::new(RepRangeLock::new(data,
+/// let lock = Arc::new(RepVecRangeLock::new(data,
 ///                                       2,    // slice_len: Each slice has 2 elements.
 ///                                       3));  // cycle_len: Each cycle has 3 slices (offsets).
 /// let lock0 = Arc::clone(&lock);
@@ -107,7 +107,7 @@ use std::{
 ///                 30, 40, 300, 400, 3000, 4000]);
 /// ```
 #[derive(Debug)]
-pub struct RepRangeLock<T> {
+pub struct RepVecRangeLock<T> {
     /// Range length, in number of data elements.
     slice_len:          usize,
     /// Cycle length, in number of slices.
@@ -121,24 +121,24 @@ pub struct RepRangeLock<T> {
 }
 
 // SAFETY:
-// It is safe to access RepRangeLock and the contained data (via RepRangeLockGuard)
+// It is safe to access RepVecRangeLock and the contained data (via RepVecRangeLockGuard)
 // from multiple threads simultaneously.
 // The lock ensures that access to the data is strictly serialized.
 // T must be Send-able to other threads.
-unsafe impl<T> Sync for RepRangeLock<T>
+unsafe impl<T> Sync for RepVecRangeLock<T>
 where
     T: Send
 { }
 
-impl<'a, T> RepRangeLock<T> {
-    /// Construct a new RepRangeLock.
+impl<'a, T> RepVecRangeLock<T> {
+    /// Construct a new RepVecRangeLock.
     ///
     /// * `data`: The data Vec to protect.
     /// * `slice_len`: The length of the slices, in number of elements. Must be >0.
     /// * `cycle_len`: The length of the repeat cycle, in number of slices. Must be >0 and <=usize::MAX-31.
     pub fn new(data: Vec<T>,
                slice_len: usize,
-               cycle_len: usize) -> RepRangeLock<T> {
+               cycle_len: usize) -> RepVecRangeLock<T> {
         if slice_len == 0 {
             panic!("slice_len must not be 0.");
         }
@@ -157,7 +157,7 @@ impl<'a, T> RepRangeLock<T> {
 
         let data = UnsafeCell::new(data);
 
-        RepRangeLock {
+        RepVecRangeLock {
             slice_len,
             cycle_len,
             cycle_num_elems,
@@ -173,7 +173,7 @@ impl<'a, T> RepRangeLock<T> {
         unsafe { (*self.data.get()).len() }
     }
 
-    /// Unwrap the RangeLock into the contained data.
+    /// Unwrap the VecRangeLock into the contained data.
     /// This method consumes self.
     #[inline]
     pub fn into_inner(self) -> Vec<T> {
@@ -183,13 +183,13 @@ impl<'a, T> RepRangeLock<T> {
 
     /// Try to lock the given data slice at 'cycle_offset'.
     ///
-    /// * On success: Returns a `RepRangeLockGuard` that can be used to access the locked region.
-    ///               Indexing `RepRangeLockGuard` yields a slice of the `data`.
+    /// * On success: Returns a `RepVecRangeLockGuard` that can be used to access the locked region.
+    ///               Indexing `RepVecRangeLockGuard` yields a slice of the `data`.
     /// * On failure: Returns TryLockError::WouldBlock, if the slice is contended.
     ///               The locking attempt may be retried by the caller upon contention.
     ///               Returns TryLockError::Poisoned, if the lock is poisoned.
     #[inline]
-    pub fn try_lock(&'a self, cycle_offset: usize) -> TryLockResult<RepRangeLockGuard<'a, T>> {
+    pub fn try_lock(&'a self, cycle_offset: usize) -> TryLockResult<RepVecRangeLockGuard<'a, T>> {
         if cycle_offset >= self.cycle_len {
             panic!("Invalid cycle_offset. It must be 0 <= cycle_offset < cycle_len.");
         }
@@ -202,7 +202,7 @@ impl<'a, T> RepRangeLock<T> {
             // Multiply cannot overflow due to slice_len, cycle_len and cycle_offset checks.
             let cycle_offset_slices = self.slice_len * cycle_offset;
             // Successfully acquired the lock.
-            TryLockResult::Ok(RepRangeLockGuard::new(self, cycle_offset, cycle_offset_slices))
+            TryLockResult::Ok(RepVecRangeLockGuard::new(self, cycle_offset, cycle_offset_slices))
         } else {
             // Already locked by another thread.
             TryLockResult::Err(TryLockError::WouldBlock)
@@ -239,7 +239,7 @@ impl<'a, T> RepRangeLock<T> {
                 }
             }
         }
-        panic!("RepRangeLock cycle index out of range.");
+        panic!("RepVecRangeLock cycle index out of range.");
     }
 
     /// Get a mutable slice at 'cycle' / 'cycle_offset'.
@@ -265,20 +265,20 @@ impl<'a, T> RepRangeLock<T> {
 /// Lock guard variable type.
 ///
 /// The Deref and DerefMut traits are implemented for this struct.
-/// See the documentation of `RepRangeLock` for usage examples of `RepRangeLockGuard`.
+/// See the documentation of `RepVecRangeLock` for usage examples of `RepVecRangeLockGuard`.
 #[derive(Debug)]
-pub struct RepRangeLockGuard<'a, T> {
-    lock:                   &'a RepRangeLock<T>,
+pub struct RepVecRangeLockGuard<'a, T> {
+    lock:                   &'a RepVecRangeLock<T>,
     cycle_offset:           usize,
     cycle_offset_slices:    usize,
 }
 
-impl<'a, T> RepRangeLockGuard<'a, T> {
+impl<'a, T> RepVecRangeLockGuard<'a, T> {
     #[inline]
-    fn new(lock:                &'a RepRangeLock<T>,
+    fn new(lock:                &'a RepVecRangeLock<T>,
            cycle_offset:        usize,
-           cycle_offset_slices: usize) -> RepRangeLockGuard<'a, T> {
-        RepRangeLockGuard {
+           cycle_offset_slices: usize) -> RepVecRangeLockGuard<'a, T> {
+        RepVecRangeLockGuard {
             lock,
             cycle_offset,
             cycle_offset_slices,
@@ -286,14 +286,14 @@ impl<'a, T> RepRangeLockGuard<'a, T> {
     }
 }
 
-impl<'a, T> Drop for RepRangeLockGuard<'a, T> {
+impl<'a, T> Drop for RepVecRangeLockGuard<'a, T> {
     #[inline]
     fn drop(&mut self) {
         self.lock.unlock(self.cycle_offset);
     }
 }
 
-impl<'a, T> Index<usize> for RepRangeLockGuard<'a, T> {
+impl<'a, T> Index<usize> for RepVecRangeLockGuard<'a, T> {
     type Output = [T];
 
     #[inline]
@@ -303,7 +303,7 @@ impl<'a, T> Index<usize> for RepRangeLockGuard<'a, T> {
     }
 }
 
-impl<'a, T> IndexMut<usize> for RepRangeLockGuard<'a, T> {
+impl<'a, T> IndexMut<usize> for RepVecRangeLockGuard<'a, T> {
     #[inline]
     fn index_mut(&mut self, cycle: usize) -> &mut Self::Output {
         // SAFETY:
@@ -329,38 +329,38 @@ mod tests {
     #[test]
     #[should_panic(expected="cycle_len out of range")]
     fn test_oob_slice_len() {
-        let _ = RepRangeLock::new(vec![0; 100], 1, 0);
+        let _ = RepVecRangeLock::new(vec![0; 100], 1, 0);
     }
 
     #[test]
     #[should_panic(expected="cycle_len out of range")]
     fn test_oob_cycle_len1() {
-        let _ = RepRangeLock::new(vec![0; 100], 1, usize::MAX - 30);
+        let _ = RepVecRangeLock::new(vec![0; 100], 1, usize::MAX - 30);
     }
 
     #[test]
     #[should_panic(expected="slice_len must not be 0")]
     fn test_oob_cycle_len0() {
-        let _ = RepRangeLock::new(vec![0; 100], 0, 1);
+        let _ = RepVecRangeLock::new(vec![0; 100], 0, 1);
     }
 
     #[test]
     #[should_panic(expected="cycle overflow")]
     fn test_oob_cycle_len2() {
-        let _ = RepRangeLock::new(vec![0; 100], usize::MAX, 2);
+        let _ = RepVecRangeLock::new(vec![0; 100], usize::MAX, 2);
     }
 
     #[test]
     #[should_panic(expected="must be 0 <= cycle_offset < cycle_len")]
     fn test_oob_lock_offset() {
-        let a = RepRangeLock::new(vec![0; 100], 2, 10);
+        let a = RepVecRangeLock::new(vec![0; 100], 2, 10);
         let _ = a.try_lock(10);
     }
 
     #[test]
     #[should_panic(expected="index out of bounds")]
     fn test_base_oob_read() {
-        let a = RepRangeLock::new(vec![0; 100], 1, 2);
+        let a = RepVecRangeLock::new(vec![0; 100], 1, 2);
         let g = a.try_lock(0).unwrap();
         let _ = g[0][1];
     }
@@ -368,7 +368,7 @@ mod tests {
     #[test]
     #[should_panic(expected="guard 1 panicked")]
     fn test_overlap0() {
-        let a = RepRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6], 1, 3);
+        let a = RepVecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6], 1, 3);
         let _g0 = a.try_lock(0).expect("guard 0 panicked");
         let _g1 = a.try_lock(0).expect("guard 1 panicked");
     }
@@ -376,14 +376,14 @@ mod tests {
     #[test]
     #[should_panic(expected="guard 1 panicked")]
     fn test_overlap1() {
-        let a = RepRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6], 1, 3);
+        let a = RepVecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6], 1, 3);
         let _g0 = a.try_lock(1).expect("guard 0 panicked");
         let _g1 = a.try_lock(1).expect("guard 1 panicked");
     }
 
     #[test]
     fn test_big_cycle() {
-        let a = Arc::new(RepRangeLock::new(vec![1_i32; 256],
+        let a = Arc::new(RepVecRangeLock::new(vec![1_i32; 256],
                                                 2,      // slice_len
                                                 128));  // cycle_len
         assert!(a.locked_offsets.len() == 4);
@@ -434,7 +434,7 @@ mod tests {
     #[test]
     #[should_panic(expected="Invalid cycle_offset")]
     fn test_cycle_offset_out_of_range() {
-        let a = Arc::new(RepRangeLock::new(vec![1_i32; 256],
+        let a = Arc::new(RepVecRangeLock::new(vec![1_i32; 256],
                                                 2,      // slice_len
                                                 128));  // cycle_len
         let _g = a.try_lock(128);
@@ -442,7 +442,7 @@ mod tests {
  
     #[test]
     fn test_thread_no_overlap() {
-        let a = Arc::new(RepRangeLock::new(vec![1_i32, 2, 3, 4],
+        let a = Arc::new(RepVecRangeLock::new(vec![1_i32, 2, 3, 4],
                                                 1,      // slice_len
                                                 2));    // cycle_len
         let b = Arc::clone(&a);
@@ -481,7 +481,7 @@ mod tests {
 
     #[test]
     fn test_nosync() {
-        let a = Arc::new(RepRangeLock::new(vec![
+        let a = Arc::new(RepVecRangeLock::new(vec![
             NoSyncStruct(RefCell::new(1)),
             NoSyncStruct(RefCell::new(2)),
             NoSyncStruct(RefCell::new(3)),
