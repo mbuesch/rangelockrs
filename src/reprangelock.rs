@@ -265,9 +265,9 @@ impl<'a, T> RepVecRangeLock<T> {
     }
 }
 
-/// Lock guard variable type.
+/// Lock guard variable type for RepVecRangeLock.
 ///
-/// The Deref and DerefMut traits are implemented for this struct.
+/// The Index and IndexMut traits are implemented for this struct.
 /// See the documentation of `RepVecRangeLock` for usage examples of `RepVecRangeLockGuard`.
 #[derive(Debug)]
 pub struct RepVecRangeLockGuard<'a, T> {

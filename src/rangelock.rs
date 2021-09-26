@@ -30,21 +30,55 @@ use std::{
     }
 };
 
-/// Multi-thread range lock for `Vec<T>`.
+/// General purpose multi-thread range lock for `Vec<T>`.
 ///
 /// # Example
 ///
 /// ```
 /// use range_lock::VecRangeLock;
-/// use std::sync::Arc;
+/// use std::sync::{Arc, Barrier};
+/// use std::thread;
 ///
-/// let lock = Arc::new(VecRangeLock::new(vec![1, 2, 3, 4, 5]));
+/// let data = vec![10, 11, 12, 13];
 ///
-/// let mut guard = lock.try_lock(2..4).expect("Failed to lock 2..4");
-/// assert_eq!(guard[0], 3);
-/// guard[0] = 100;
-/// assert_eq!(guard[0], 100);
-/// assert_eq!(guard[1], 4);
+/// let data_lock0 = Arc::new(VecRangeLock::new(data));
+/// let data_lock1 = Arc::clone(&data_lock0);
+/// let data_lock2 = Arc::clone(&data_lock0);
+///
+/// // Thread barrier, only for demonstration purposes.
+/// let barrier0 = Arc::new(Barrier::new(2));
+/// let barrier1 = Arc::clone(&barrier0);
+///
+/// let thread0 = thread::spawn(move || {
+///     {
+///         let mut guard = data_lock0.try_lock(0..2).expect("T0: Failed to lock 0..2");
+///         guard[0] = 100; // Write to data[0]
+///     }
+///     barrier0.wait(); // Synchronize with second thread.
+///     {
+///         let guard = data_lock0.try_lock(2..4).expect("T0: Failed to lock 2..4");
+///         assert_eq!(guard[0], 200); // Read from data[2]
+///     }
+/// });
+///
+/// let thread1 = thread::spawn(move || {
+///     {
+///         let mut guard = data_lock1.try_lock(2..4).expect("T1: Failed to lock 2..4");
+///         guard[0] = 200; // Write to data[2]
+///     }
+///     barrier1.wait(); // Synchronize with first thread.
+///     {
+///         let guard = data_lock1.try_lock(0..2).expect("T1: Failed to lock 0..2");
+///         assert_eq!(guard[0], 100); // Read from data[0]
+///     }
+/// });
+///
+/// thread0.join().expect("Thread 0 failed");
+/// thread1.join().expect("Thread 1 failed");
+///
+/// let data = Arc::try_unwrap(data_lock2).expect("Arc unwrap failed").into_inner();
+///
+/// assert_eq!(data, vec![100, 11, 200, 13]);
 /// ```
 #[derive(Debug)]
 pub struct VecRangeLock<T> {
@@ -162,7 +196,7 @@ impl<'a, T> VecRangeLock<T> {
     }
 }
 
-/// Lock guard variable type.
+/// Lock guard variable type for VecRangeLock.
 ///
 /// The Deref and DerefMut traits are implemented for this struct.
 /// See the documentation of `VecRangeLock` for usage examples of `VecRangeLockGuard`.
