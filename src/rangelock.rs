@@ -1,6 +1,6 @@
 // -*- coding: utf-8 -*-
 //
-// Copyright 2021 Michael Büsch <m@bues.ch>
+// Copyright 2021-2022 Michael Büsch <m@bues.ch>
 //
 // Licensed under the Apache License version 2.0
 // or the MIT license, at your option.
@@ -15,12 +15,14 @@ use std::{
     cell::UnsafeCell,
     collections::HashSet,
     hint::unreachable_unchecked,
+    marker::PhantomData,
     ops::{
         Deref,
         DerefMut,
         Range,
         RangeBounds,
     },
+    rc::Rc,
     sync::{
         LockResult,
         Mutex,
@@ -204,6 +206,7 @@ impl<'a, T> VecRangeLock<T> {
 pub struct VecRangeLockGuard<'a, T> {
     lock:   &'a VecRangeLock<T>,
     range:  Range<usize>,
+    _p:     PhantomData<Rc<&'a mut T>>, // Suppresses Send and Sync autotraits for VecRangeLockGuard.
 }
 
 impl<'a, T> VecRangeLockGuard<'a, T> {
@@ -213,6 +216,7 @@ impl<'a, T> VecRangeLockGuard<'a, T> {
         VecRangeLockGuard {
             lock,
             range,
+            _p: PhantomData,
         }
     }
 }

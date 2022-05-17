@@ -1,6 +1,6 @@
 // -*- coding: utf-8 -*-
 //
-// Copyright 2021 Michael Büsch <m@bues.ch>
+// Copyright 2021-2022 Michael Büsch <m@bues.ch>
 //
 // Licensed under the Apache License version 2.0
 // or the MIT license, at your option.
@@ -10,10 +10,12 @@
 use std::{
     cell::UnsafeCell,
     hint::unreachable_unchecked,
+    marker::PhantomData,
     ops::{
         Index,
         IndexMut,
     },
+    rc::Rc,
     sync::{
         atomic::{
             AtomicU32,
@@ -274,6 +276,7 @@ pub struct RepVecRangeLockGuard<'a, T> {
     lock:                   &'a RepVecRangeLock<T>,
     cycle_offset:           usize,
     cycle_offset_slices:    usize,
+    _p:                     PhantomData<Rc<&'a mut T>>, // Suppresses Send and Sync autotraits for RepVecRangeLockGuard.
 }
 
 impl<'a, T> RepVecRangeLockGuard<'a, T> {
@@ -285,6 +288,7 @@ impl<'a, T> RepVecRangeLockGuard<'a, T> {
             lock,
             cycle_offset,
             cycle_offset_slices,
+            _p: PhantomData,
         }
     }
 }
