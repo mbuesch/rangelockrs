@@ -84,7 +84,9 @@ use std::{
 /// ```
 #[derive(Debug)]
 pub struct VecRangeLock<T> {
+    /// Set of the currently locked ranges.
     ranges: Mutex<HashSet<Range<usize>>>,
+    /// The underlying data.
     data:   UnsafeCell<Vec<T>>,
 }
 
@@ -204,9 +206,15 @@ impl<'a, T> VecRangeLock<T> {
 /// See the documentation of `VecRangeLock` for usage examples of `VecRangeLockGuard`.
 #[derive(Debug)]
 pub struct VecRangeLockGuard<'a, T> {
+    /// Reference to the underlying lock.
     lock:   &'a VecRangeLock<T>,
+    /// The locked range.
     range:  Range<usize>,
-    _p:     PhantomData<Rc<&'a mut T>>, // Suppresses Send and Sync autotraits for VecRangeLockGuard.
+
+    /// Suppresses Send and Sync autotraits for VecRangeLockGuard.
+    /// The &mut suppresses Sync and the Rc suppresses Send.
+    #[allow(clippy::redundant_allocation)]
+    _p:     PhantomData<Rc<&'a mut T>>,
 }
 
 impl<'a, T> VecRangeLockGuard<'a, T> {

@@ -273,10 +273,17 @@ impl<'a, T> RepVecRangeLock<T> {
 /// See the documentation of `RepVecRangeLock` for usage examples of `RepVecRangeLockGuard`.
 #[derive(Debug)]
 pub struct RepVecRangeLockGuard<'a, T> {
+    /// Reference to the underlying lock.
     lock:                   &'a RepVecRangeLock<T>,
+    /// The locked cycle offset.
     cycle_offset:           usize,
+    /// The locked slice start.
     cycle_offset_slices:    usize,
-    _p:                     PhantomData<Rc<&'a mut T>>, // Suppresses Send and Sync autotraits for RepVecRangeLockGuard.
+
+    /// Suppresses Send and Sync autotraits for RepVecRangeLockGuard.
+    /// The &mut suppresses Sync and the Rc suppresses Send.
+    #[allow(clippy::redundant_allocation)]
+    _p:                     PhantomData<Rc<&'a mut T>>,
 }
 
 impl<'a, T> RepVecRangeLockGuard<'a, T> {
