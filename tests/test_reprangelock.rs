@@ -1,6 +1,6 @@
 // -*- coding: utf-8 -*-
 //
-// Copyright 2021 Michael Büsch <m@bues.ch>
+// Copyright 2021-2022 Michael Büsch <m@bues.ch>
 //
 // Licensed under the Apache License version 2.0
 // or the MIT license, at your option.
@@ -9,7 +9,7 @@
 
 extern crate range_lock;
 use range_lock::RepVecRangeLock;
-use std::sync::{Arc, Barrier, TryLockResult};
+use std::sync::{Arc, Barrier};
 use std::thread;
 
 #[test]
@@ -95,7 +95,7 @@ fn test_conflict() {
     let thread1 = thread::spawn(move || {
         barrier1.wait();
         // thread0 holds lock offset 0.
-        if let TryLockResult::Err(_) = data_lock1.try_lock(0) {
+        if data_lock1.try_lock(0).is_err() {
             barrier1.wait();
             panic!("T1: Failed to lock offset 0.");
         }
