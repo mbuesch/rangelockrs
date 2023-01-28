@@ -151,11 +151,13 @@ impl<'a, T> VecRangeLock<T> {
 
     /// Unlock a range.
     fn unlock(&self, range: &Range<usize>) {
-        let mut ranges = self
-            .ranges
-            .lock()
-            .expect("VecRangeLock: Failed to take ranges mutex.");
-        ranges.remove(range);
+        if !range.is_empty() {
+            let mut ranges = self
+                .ranges
+                .lock()
+                .expect("VecRangeLock: Failed to take ranges mutex.");
+            ranges.remove(range);
+        }
     }
 
     /// Get an immutable slice to the specified range.
