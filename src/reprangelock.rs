@@ -132,10 +132,8 @@ impl<'a, T> RepVecRangeLock<T> {
         if cycle_len == 0 || cycle_len > usize::MAX - 31 {
             panic!("cycle_len out of range.");
         }
-
-        let cycle_num_elems = match cycle_len.checked_mul(slice_len) {
-            Some(x) => x,
-            None => panic!("Repeat cycle overflow."),
+        let Some(cycle_num_elems) = cycle_len.checked_mul(slice_len) else {
+            panic!("Repeat cycle overflow.");
         };
 
         let num = (cycle_len + 31) / 32;
