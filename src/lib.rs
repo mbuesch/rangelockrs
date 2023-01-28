@@ -60,6 +60,7 @@
 //! });
 //! ```
 
+mod lockedranges;
 mod rangelock;
 mod reprangelock;
 mod util;

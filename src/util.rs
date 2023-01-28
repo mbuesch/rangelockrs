@@ -1,16 +1,13 @@
 // -*- coding: utf-8 -*-
 //
-// Copyright 2021 Michael Büsch <m@bues.ch>
+// Copyright 2021-2023 Michael Büsch <m@bues.ch>
 //
 // Licensed under the Apache License version 2.0
 // or the MIT license, at your option.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //
 
-use std::{
-    collections::HashSet,
-    ops::{Bound, Range, RangeBounds},
-};
+use std::ops::{Bound, RangeBounds};
 
 /// Get the `(start, end)` bounds from a `RangeBounds<usize>` trait.
 /// `start` is inclusive and `end` is exclusive.
@@ -32,18 +29,6 @@ pub fn get_bounds(range: &impl RangeBounds<usize>, length: usize) -> (usize, usi
     (start, end)
 }
 
-/// Check if `range` overlaps any range in `ranges`.
-#[inline]
-pub fn overlaps_any(ranges: &HashSet<Range<usize>>, range: &impl RangeBounds<usize>) -> bool {
-    let (start, end) = get_bounds(range, usize::MAX);
-    for r in ranges {
-        if end > r.start && start < r.end {
-            return true;
-        }
-    }
-    false
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -63,22 +48,6 @@ mod tests {
     #[should_panic(expected = "< usize::MAX")]
     fn test_get_bounds_end_panic() {
         get_bounds(&(..=usize::MAX), 0);
-    }
-
-    #[test]
-    fn test_overlaps_any() {
-        let mut a = HashSet::new();
-        a.insert(0..1);
-        a.insert(4..6);
-        assert!(overlaps_any(&a, &(0..1)));
-        assert!(!overlaps_any(&a, &(1..2)));
-        assert!(!overlaps_any(&a, &(1..3)));
-        assert!(!overlaps_any(&a, &(2..4)));
-        assert!(overlaps_any(&a, &(3..5)));
-        assert!(overlaps_any(&a, &(4..6)));
-        assert!(overlaps_any(&a, &(5..7)));
-        assert!(!overlaps_any(&a, &(6..8)));
-        assert!(!overlaps_any(&a, &(7..9)));
     }
 }
 

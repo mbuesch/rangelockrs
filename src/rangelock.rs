@@ -7,10 +7,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //
 
-use crate::util::{get_bounds, overlaps_any};
+use crate::{lockedranges::LockedRanges, util::get_bounds};
 use std::{
     cell::UnsafeCell,
-    collections::HashSet,
     hint::unreachable_unchecked,
     marker::PhantomData,
     ops::{Deref, DerefMut, Range, RangeBounds},
@@ -71,7 +70,7 @@ use std::{
 #[derive(Debug)]
 pub struct VecRangeLock<T> {
     /// Set of the currently locked ranges.
-    ranges: Mutex<HashSet<Range<usize>>>,
+    ranges: Mutex<LockedRanges>,
     /// The underlying data.
     data: UnsafeCell<Vec<T>>,
 }
@@ -89,7 +88,7 @@ impl<'a, T> VecRangeLock<T> {
     /// * `data`: The data Vec to protect.
     pub fn new(data: Vec<T>) -> VecRangeLock<T> {
         VecRangeLock {
-            ranges: Mutex::new(HashSet::new()),
+            ranges: Mutex::new(LockedRanges::new()),
             data: UnsafeCell::new(data),
         }
     }
@@ -132,11 +131,10 @@ impl<'a, T> VecRangeLock<T> {
 
         if range_start < range_end {
             if let LockResult::Ok(mut ranges) = self.ranges.lock() {
-                if overlaps_any(&ranges, &range) {
-                    TryLockResult::Err(TryLockError::WouldBlock)
-                } else {
-                    ranges.insert(range.clone());
+                if ranges.insert(&range) {
                     TryLockResult::Ok(VecRangeLockGuard::new(self, range))
+                } else {
+                    TryLockResult::Err(TryLockError::WouldBlock)
                 }
             } else {
                 TryLockResult::Err(TryLockError::Poisoned(PoisonError::new(
