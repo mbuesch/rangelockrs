@@ -7,7 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //
 
-//! This crate provides locks/mutexes for multi-threaded access to a single Vec<T> instance.
+//! This crate provides locks/mutexes for multi-threaded access to a single `Vec<T>` instance.
 //!
 //! # VecRangeLock: General purpose range lock
 //!
