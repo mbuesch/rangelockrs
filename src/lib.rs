@@ -7,12 +7,12 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //
 
-//! This crate provides locks/mutexes for multi-threaded access to a single `Vec<T>` instance.
+//! This crate provides locks/mutexes for multi-threaded access to a single [std::vec::Vec] instance.
 //!
 //! # VecRangeLock: General purpose range lock
 //!
 //! This is a very basic usage example.
-//! For a more complex example, please see the `VecRangeLock` struct documentation.
+//! For a more complex example, please see the [VecRangeLock] struct documentation.
 //!
 //! ```
 //! use range_lock::VecRangeLock;
@@ -31,7 +31,7 @@
 //! # RepVecRangeLock: Restricted interleaved pattern range lock
 //!
 //! This is a very basic usage example.
-//! For a more complex example, please see the `RepVecRangeLock` struct documentation.
+//! For a more complex example, please see the [RepVecRangeLock] struct documentation.
 //!
 //! ```
 //! use range_lock::RepVecRangeLock;

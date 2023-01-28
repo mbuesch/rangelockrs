@@ -19,7 +19,7 @@ use std::{
     },
 };
 
-/// Interleaved multi-thread range lock for `Vec<T>`.
+/// Interleaved multi-thread range lock for [std::vec::Vec].
 ///
 /// Each thread can lock a set of repeating slices of the data.
 /// The slices are interleaved with each other
@@ -120,9 +120,9 @@ pub struct RepVecRangeLock<T> {
 unsafe impl<T> Sync for RepVecRangeLock<T> where T: Send {}
 
 impl<'a, T> RepVecRangeLock<T> {
-    /// Construct a new RepVecRangeLock.
+    /// Construct a new [RepVecRangeLock].
     ///
-    /// * `data`: The data Vec to protect.
+    /// * `data`: The data [Vec] to protect.
     /// * `slice_len`: The length of the slices, in number of elements. Must be >0.
     /// * `cycle_len`: The length of the repeat cycle, in number of slices. Must be >0 and <=usize::MAX-31.
     pub fn new(data: Vec<T>, slice_len: usize, cycle_len: usize) -> RepVecRangeLock<T> {
@@ -153,14 +153,14 @@ impl<'a, T> RepVecRangeLock<T> {
         }
     }
 
-    /// Get the length (in number of elements) of the embedded Vec.
+    /// Get the length (in number of elements) of the embedded [Vec].
     #[inline]
     pub fn data_len(&self) -> usize {
         // SAFETY: Multithreaded access is safe. len cannot change.
         unsafe { (*self.data.get()).len() }
     }
 
-    /// Unwrap the VecRangeLock into the contained data.
+    /// Unwrap this [RepVecRangeLock] into the contained data.
     /// This method consumes self.
     #[inline]
     pub fn into_inner(self) -> Vec<T> {
@@ -173,11 +173,11 @@ impl<'a, T> RepVecRangeLock<T> {
 
     /// Try to lock the given data slice at 'cycle_offset'.
     ///
-    /// * On success: Returns a `RepVecRangeLockGuard` that can be used to access the locked region.
-    ///               Indexing `RepVecRangeLockGuard` yields a slice of the `data`.
-    /// * On failure: Returns TryLockError::WouldBlock, if the slice is contended.
+    /// * On success: Returns a [RepVecRangeLockGuard] that can be used to access the locked region.
+    ///               Indexing [RepVecRangeLockGuard] yields a slice of the `data`.
+    /// * On failure: Returns [TryLockError::WouldBlock], if the slice is contended.
     ///               The locking attempt may be retried by the caller upon contention.
-    ///               Returns TryLockError::Poisoned, if the lock is poisoned.
+    ///               Returns [TryLockError::Poisoned], if the lock is poisoned.
     #[inline]
     pub fn try_lock(&'a self, cycle_offset: usize) -> TryLockResult<RepVecRangeLockGuard<'a, T>> {
         if cycle_offset >= self.cycle_len {
@@ -255,10 +255,10 @@ impl<'a, T> RepVecRangeLock<T> {
     }
 }
 
-/// Lock guard variable type for RepVecRangeLock.
+/// Lock guard variable type for [RepVecRangeLock].
 ///
-/// The Index and IndexMut traits are implemented for this struct.
-/// See the documentation of `RepVecRangeLock` for usage examples of `RepVecRangeLockGuard`.
+/// The [Index] and [IndexMut] traits are implemented for this struct.
+/// See the documentation of [RepVecRangeLock] for usage examples of [RepVecRangeLockGuard].
 #[derive(Debug)]
 pub struct RepVecRangeLockGuard<'a, T> {
     /// Reference to the underlying lock.

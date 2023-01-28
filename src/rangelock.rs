@@ -17,7 +17,7 @@ use std::{
     sync::{LockResult, Mutex, PoisonError, TryLockError, TryLockResult},
 };
 
-/// General purpose multi-thread range lock for `Vec<T>`.
+/// General purpose multi-thread range lock for [std::vec::Vec].
 ///
 /// # Example
 ///
@@ -81,9 +81,9 @@ pub struct VecRangeLock<T> {
 unsafe impl<T> Sync for VecRangeLock<T> where T: Send {}
 
 impl<'a, T> VecRangeLock<T> {
-    /// Construct a new VecRangeLock.
+    /// Construct a new [VecRangeLock].
     ///
-    /// * `data`: The data Vec to protect.
+    /// * `data`: The data [Vec] to protect.
     pub fn new(data: Vec<T>) -> VecRangeLock<T> {
         VecRangeLock {
             ranges: Mutex::new(LockedRanges::new()),
@@ -91,14 +91,14 @@ impl<'a, T> VecRangeLock<T> {
         }
     }
 
-    /// Get the length (in number of elements) of the embedded Vec.
+    /// Get the length (in number of elements) of the embedded [Vec].
     #[inline]
     pub fn data_len(&self) -> usize {
         // SAFETY: Multithreaded access is safe. len cannot change.
         unsafe { (*self.data.get()).len() }
     }
 
-    /// Unwrap the VecRangeLock into the contained data.
+    /// Unwrap this [VecRangeLock] into the contained data.
     /// This method consumes self.
     #[inline]
     pub fn into_inner(self) -> Vec<T> {
@@ -108,11 +108,11 @@ impl<'a, T> VecRangeLock<T> {
 
     /// Try to lock the given data `range`.
     ///
-    /// * On success: Returns a `VecRangeLockGuard` that can be used to access the locked region.
-    ///               Dereferencing `VecRangeLockGuard` yields a slice of the `data`.
-    /// * On failure: Returns TryLockError::WouldBlock, if the range is contended.
+    /// * On success: Returns a [VecRangeLockGuard] that can be used to access the locked region.
+    ///               Dereferencing [VecRangeLockGuard] yields a slice of the `data`.
+    /// * On failure: Returns [TryLockError::WouldBlock], if the range is contended.
     ///               The locking attempt may be retried by the caller upon contention.
-    ///               Returns TryLockError::Poisoned, if the lock is poisoned.
+    ///               Returns [TryLockError::Poisoned], if the lock is poisoned.
     pub fn try_lock(
         &'a self,
         range: impl RangeBounds<usize>,
@@ -184,10 +184,10 @@ impl<'a, T> VecRangeLock<T> {
     }
 }
 
-/// Lock guard variable type for VecRangeLock.
+/// Lock guard variable type for [VecRangeLock].
 ///
-/// The Deref and DerefMut traits are implemented for this struct.
-/// See the documentation of `VecRangeLock` for usage examples of `VecRangeLockGuard`.
+/// The [Deref] and [DerefMut] traits are implemented for this struct.
+/// See the documentation of [VecRangeLock] for usage examples of [VecRangeLockGuard].
 #[derive(Debug)]
 pub struct VecRangeLockGuard<'a, T> {
     /// Reference to the underlying lock.
