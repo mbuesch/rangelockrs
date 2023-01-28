@@ -146,7 +146,7 @@ impl<'a, T> VecRangeLock<T> {
 
         if range_start < range_end {
             if let LockResult::Ok(mut ranges) = self.ranges.lock() {
-                if overlaps_any(&*ranges, &range) {
+                if overlaps_any(&ranges, &range) {
                     TryLockResult::Err(TryLockError::WouldBlock)
                 } else {
                     ranges.insert(range.clone());
