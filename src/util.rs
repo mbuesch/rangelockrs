@@ -9,11 +9,7 @@
 
 use std::{
     collections::HashSet,
-    ops::{
-        Bound,
-        Range,
-        RangeBounds,
-    },
+    ops::{Bound, Range, RangeBounds},
 };
 
 /// Get the `(start, end)` bounds from a `RangeBounds<usize>` trait.
@@ -22,15 +18,14 @@ use std::{
 pub fn get_bounds(range: &impl RangeBounds<usize>, length: usize) -> (usize, usize) {
     let start = match range.start_bound() {
         Bound::Included(x) => *x,
-        Bound::Excluded(_) =>
-            panic!("get_bounds: Start bound must be inclusive or unbounded."),
+        Bound::Excluded(_) => panic!("get_bounds: Start bound must be inclusive or unbounded."),
         Bound::Unbounded => 0,
     };
     let end = match range.end_bound() {
         Bound::Included(x) => {
             assert!(*x < usize::MAX);
             *x + 1 // to excluded
-        },
+        }
         Bound::Excluded(x) => *x,
         Bound::Unbounded => length,
     };
@@ -39,8 +34,7 @@ pub fn get_bounds(range: &impl RangeBounds<usize>, length: usize) -> (usize, usi
 
 /// Check if `range` overlaps any range in `ranges`.
 #[inline]
-pub fn overlaps_any(ranges: &HashSet<Range<usize>>,
-                    range:  &impl RangeBounds<usize>) -> bool {
+pub fn overlaps_any(ranges: &HashSet<Range<usize>>, range: &impl RangeBounds<usize>) -> bool {
     let (start, end) = get_bounds(range, usize::MAX);
     for r in ranges {
         if end > r.start && start < r.end {
@@ -66,7 +60,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected="< usize::MAX")]
+    #[should_panic(expected = "< usize::MAX")]
     fn test_get_bounds_end_panic() {
         get_bounds(&(..=usize::MAX), 0);
     }

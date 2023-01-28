@@ -1,35 +1,21 @@
 // -*- coding: utf-8 -*-
 //
-// Copyright 2021-2022 Michael Büsch <m@bues.ch>
+// Copyright 2021-2023 Michael Büsch <m@bues.ch>
 //
 // Licensed under the Apache License version 2.0
 // or the MIT license, at your option.
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //
 
-use crate::util::{
-    get_bounds,
-    overlaps_any,
-};
+use crate::util::{get_bounds, overlaps_any};
 use std::{
     cell::UnsafeCell,
     collections::HashSet,
     hint::unreachable_unchecked,
     marker::PhantomData,
-    ops::{
-        Deref,
-        DerefMut,
-        Range,
-        RangeBounds,
-    },
+    ops::{Deref, DerefMut, Range, RangeBounds},
     rc::Rc,
-    sync::{
-        LockResult,
-        Mutex,
-        PoisonError,
-        TryLockError,
-        TryLockResult,
-    }
+    sync::{LockResult, Mutex, PoisonError, TryLockError, TryLockResult},
 };
 
 /// General purpose multi-thread range lock for `Vec<T>`.
@@ -87,7 +73,7 @@ pub struct VecRangeLock<T> {
     /// Set of the currently locked ranges.
     ranges: Mutex<HashSet<Range<usize>>>,
     /// The underlying data.
-    data:   UnsafeCell<Vec<T>>,
+    data: UnsafeCell<Vec<T>>,
 }
 
 // SAFETY:
@@ -95,10 +81,7 @@ pub struct VecRangeLock<T> {
 // from multiple threads simultaneously.
 // The lock ensures that access to the data is strictly serialized.
 // T must be Send-able to other threads.
-unsafe impl<T> Sync for VecRangeLock<T>
-where
-    T: Send
-{ }
+unsafe impl<T> Sync for VecRangeLock<T> where T: Send {}
 
 impl<'a, T> VecRangeLock<T> {
     /// Construct a new VecRangeLock.
@@ -107,7 +90,7 @@ impl<'a, T> VecRangeLock<T> {
     pub fn new(data: Vec<T>) -> VecRangeLock<T> {
         VecRangeLock {
             ranges: Mutex::new(HashSet::new()),
-            data:   UnsafeCell::new(data),
+            data: UnsafeCell::new(data),
         }
     }
 
@@ -133,7 +116,10 @@ impl<'a, T> VecRangeLock<T> {
     /// * On failure: Returns TryLockError::WouldBlock, if the range is contended.
     ///               The locking attempt may be retried by the caller upon contention.
     ///               Returns TryLockError::Poisoned, if the lock is poisoned.
-    pub fn try_lock(&'a self, range: impl RangeBounds<usize>) -> TryLockResult<VecRangeLockGuard<'a, T>> {
+    pub fn try_lock(
+        &'a self,
+        range: impl RangeBounds<usize>,
+    ) -> TryLockResult<VecRangeLockGuard<'a, T>> {
         let data_len = self.data_len();
         let (range_start, range_end) = get_bounds(&range, data_len);
         if range_start >= data_len || range_end > data_len {
@@ -153,8 +139,9 @@ impl<'a, T> VecRangeLock<T> {
                     TryLockResult::Ok(VecRangeLockGuard::new(self, range))
                 }
             } else {
-                TryLockResult::Err(TryLockError::Poisoned(
-                    PoisonError::new(VecRangeLockGuard::new(self, range))))
+                TryLockResult::Err(TryLockError::Poisoned(PoisonError::new(
+                    VecRangeLockGuard::new(self, range),
+                )))
             }
         } else {
             // Empty range.
@@ -164,7 +151,9 @@ impl<'a, T> VecRangeLock<T> {
 
     /// Unlock a range.
     fn unlock(&self, range: &Range<usize>) {
-        let mut ranges = self.ranges.lock()
+        let mut ranges = self
+            .ranges
+            .lock()
             .expect("VecRangeLock: Failed to take ranges mutex.");
         ranges.remove(range);
     }
@@ -207,20 +196,19 @@ impl<'a, T> VecRangeLock<T> {
 #[derive(Debug)]
 pub struct VecRangeLockGuard<'a, T> {
     /// Reference to the underlying lock.
-    lock:   &'a VecRangeLock<T>,
+    lock: &'a VecRangeLock<T>,
     /// The locked range.
-    range:  Range<usize>,
+    range: Range<usize>,
 
     /// Suppresses Send and Sync autotraits for VecRangeLockGuard.
     /// The &mut suppresses Sync and the Rc suppresses Send.
     #[allow(clippy::redundant_allocation)]
-    _p:     PhantomData<Rc<&'a mut T>>,
+    _p: PhantomData<Rc<&'a mut T>>,
 }
 
 impl<'a, T> VecRangeLockGuard<'a, T> {
     #[inline]
-    fn new(lock:    &'a VecRangeLock<T>,
-           range:   Range<usize>) -> VecRangeLockGuard<'a, T> {
+    fn new(lock: &'a VecRangeLock<T>, range: Range<usize>) -> VecRangeLockGuard<'a, T> {
         VecRangeLockGuard {
             lock,
             range,
@@ -264,10 +252,10 @@ impl<'a, T> DerefMut for VecRangeLockGuard<'a, T> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::cell::RefCell;
     use std::sync::{Arc, Barrier};
     use std::thread;
-    use super::*;
 
     #[test]
     fn test_base() {
@@ -328,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected="index out of bounds")]
+    #[should_panic(expected = "index out of bounds")]
     fn test_base_oob_read() {
         let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
         let g = a.try_lock(2..4).unwrap();
@@ -336,7 +324,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected="index out of bounds")]
+    #[should_panic(expected = "index out of bounds")]
     fn test_base_oob_write() {
         let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
         let mut g = a.try_lock(2..4).unwrap();
@@ -344,7 +332,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected="guard 1 panicked")]
+    #[should_panic(expected = "guard 1 panicked")]
     fn test_overlap0() {
         let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
         let _g0 = a.try_lock(2..4).expect("guard 0 panicked");
@@ -352,7 +340,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected="guard 0 panicked")]
+    #[should_panic(expected = "guard 0 panicked")]
     fn test_overlap1() {
         let a = VecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6]);
         let _g1 = a.try_lock(3..5).expect("guard 1 panicked");

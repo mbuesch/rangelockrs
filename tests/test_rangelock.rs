@@ -58,14 +58,16 @@ fn test_rangelock() {
     thread1.join().expect("Thread 1 failed");
 
     // Unwrap the data from the lock.
-    let data = Arc::try_unwrap(data_lock2).expect("Arc unwrap failed").into_inner();
+    let data = Arc::try_unwrap(data_lock2)
+        .expect("Arc unwrap failed")
+        .into_inner();
 
     // Check the data that has been modified by the threads.
     assert_eq!(data, vec![100, 11, 200, 13]);
 }
 
 #[test]
-#[should_panic(expected="T1: Failed to lock 1..4")]
+#[should_panic(expected = "T1: Failed to lock 1..4")]
 fn test_conflict() {
     let data = vec![10, 11, 12, 13];
 

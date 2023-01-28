@@ -1,6 +1,6 @@
 // -*- coding: utf-8 -*-
 //
-// Copyright 2021-2022 Michael Büsch <m@bues.ch>
+// Copyright 2021-2023 Michael Büsch <m@bues.ch>
 //
 // Licensed under the Apache License version 2.0
 // or the MIT license, at your option.
@@ -11,19 +11,12 @@ use std::{
     cell::UnsafeCell,
     hint::unreachable_unchecked,
     marker::PhantomData,
-    ops::{
-        Index,
-        IndexMut,
-    },
+    ops::{Index, IndexMut},
     rc::Rc,
     sync::{
-        atomic::{
-            AtomicU32,
-            Ordering,
-        },
-        TryLockError,
-        TryLockResult,
-    }
+        atomic::{AtomicU32, Ordering},
+        TryLockError, TryLockResult,
+    },
 };
 
 /// Interleaved multi-thread range lock for `Vec<T>`.
@@ -111,15 +104,15 @@ use std::{
 #[derive(Debug)]
 pub struct RepVecRangeLock<T> {
     /// Range length, in number of data elements.
-    slice_len:          usize,
+    slice_len: usize,
     /// Cycle length, in number of slices.
-    cycle_len:          usize,
+    cycle_len: usize,
     /// Cycle length, in number of data elements.
-    cycle_num_elems:    usize,
+    cycle_num_elems: usize,
     /// Bitmask of locked cycle offsets.
-    locked_offsets:     Vec<AtomicU32>,
+    locked_offsets: Vec<AtomicU32>,
     /// The protected data.
-    data:               UnsafeCell<Vec<T>>,
+    data: UnsafeCell<Vec<T>>,
 }
 
 // SAFETY:
@@ -127,10 +120,7 @@ pub struct RepVecRangeLock<T> {
 // from multiple threads simultaneously.
 // The lock ensures that access to the data is strictly serialized.
 // T must be Send-able to other threads.
-unsafe impl<T> Sync for RepVecRangeLock<T>
-where
-    T: Send
-{ }
+unsafe impl<T> Sync for RepVecRangeLock<T> where T: Send {}
 
 impl<'a, T> RepVecRangeLock<T> {
     /// Construct a new RepVecRangeLock.
@@ -138,9 +128,7 @@ impl<'a, T> RepVecRangeLock<T> {
     /// * `data`: The data Vec to protect.
     /// * `slice_len`: The length of the slices, in number of elements. Must be >0.
     /// * `cycle_len`: The length of the repeat cycle, in number of slices. Must be >0 and <=usize::MAX-31.
-    pub fn new(data: Vec<T>,
-               slice_len: usize,
-               cycle_len: usize) -> RepVecRangeLock<T> {
+    pub fn new(data: Vec<T>, slice_len: usize, cycle_len: usize) -> RepVecRangeLock<T> {
         if slice_len == 0 {
             panic!("slice_len must not be 0.");
         }
@@ -179,7 +167,10 @@ impl<'a, T> RepVecRangeLock<T> {
     /// This method consumes self.
     #[inline]
     pub fn into_inner(self) -> Vec<T> {
-        debug_assert!(self.locked_offsets.iter().all(|x| x.load(Ordering::Acquire) == 0));
+        debug_assert!(self
+            .locked_offsets
+            .iter()
+            .all(|x| x.load(Ordering::Acquire) == 0));
         self.data.into_inner()
     }
 
@@ -198,13 +189,17 @@ impl<'a, T> RepVecRangeLock<T> {
         let idx = cycle_offset / 32;
         let mask = 1 << (cycle_offset % 32);
         // SAFETY: cycle_offset has been checked against cycle_len.
-        let prev = unsafe { self.locked_offsets.get_unchecked(idx) }
-            .fetch_or(mask, Ordering::AcqRel);
+        let prev =
+            unsafe { self.locked_offsets.get_unchecked(idx) }.fetch_or(mask, Ordering::AcqRel);
         if prev & mask == 0 {
             // Multiply cannot overflow due to slice_len, cycle_len and cycle_offset checks.
             let cycle_offset_slices = self.slice_len * cycle_offset;
             // Successfully acquired the lock.
-            TryLockResult::Ok(RepVecRangeLockGuard::new(self, cycle_offset, cycle_offset_slices))
+            TryLockResult::Ok(RepVecRangeLockGuard::new(
+                self,
+                cycle_offset,
+                cycle_offset_slices,
+            ))
         } else {
             // Already locked by another thread.
             TryLockResult::Err(TryLockError::WouldBlock)
@@ -217,8 +212,8 @@ impl<'a, T> RepVecRangeLock<T> {
         let idx = cycle_offset / 32;
         let mask = 1 << (cycle_offset % 32);
         // SAFETY: cycle_offset has been checked against cycle_len in try_lock().
-        let prev = unsafe { self.locked_offsets.get_unchecked(idx) }
-            .fetch_xor(mask, Ordering::Release);
+        let prev =
+            unsafe { self.locked_offsets.get_unchecked(idx) }.fetch_xor(mask, Ordering::Release);
         debug_assert!(prev & mask != 0);
     }
 
@@ -228,9 +223,7 @@ impl<'a, T> RepVecRangeLock<T> {
     ///
     /// See get_mut_slice().
     #[inline]
-    unsafe fn get_slice(&self,
-                        cycle_offset_slices: usize,
-                        cycle: usize) -> &[T] {
+    unsafe fn get_slice(&self, cycle_offset_slices: usize, cycle: usize) -> &[T] {
         if let Some(cycle_elemidx) = self.cycle_num_elems.checked_mul(cycle) {
             if let Some(begin) = cycle_elemidx.checked_add(cycle_offset_slices) {
                 if let Some(end) = begin.checked_add(self.slice_len) {
@@ -257,9 +250,7 @@ impl<'a, T> RepVecRangeLock<T> {
     /// * Immutable and mutable slices must not coexist.
     #[inline]
     #[allow(clippy::mut_from_ref)] // Slices won't overlap. See SAFETY.
-    unsafe fn get_mut_slice(&self,
-                            cycle_offset_slices: usize,
-                            cycle: usize) -> &mut [T] {
+    unsafe fn get_mut_slice(&self, cycle_offset_slices: usize, cycle: usize) -> &mut [T] {
         let cptr = self.get_slice(cycle_offset_slices, cycle) as *const [T];
         let mut_slice = (cptr as *mut [T]).as_mut();
         // SAFETY: The pointer is never null, because it has been casted from a slice.
@@ -274,23 +265,24 @@ impl<'a, T> RepVecRangeLock<T> {
 #[derive(Debug)]
 pub struct RepVecRangeLockGuard<'a, T> {
     /// Reference to the underlying lock.
-    lock:                   &'a RepVecRangeLock<T>,
+    lock: &'a RepVecRangeLock<T>,
     /// The locked cycle offset.
-    cycle_offset:           usize,
+    cycle_offset: usize,
     /// The locked slice start.
-    cycle_offset_slices:    usize,
-
+    cycle_offset_slices: usize,
     /// Suppresses Send and Sync autotraits for RepVecRangeLockGuard.
     /// The &mut suppresses Sync and the Rc suppresses Send.
     #[allow(clippy::redundant_allocation)]
-    _p:                     PhantomData<Rc<&'a mut T>>,
+    _p: PhantomData<Rc<&'a mut T>>,
 }
 
 impl<'a, T> RepVecRangeLockGuard<'a, T> {
     #[inline]
-    fn new(lock:                &'a RepVecRangeLock<T>,
-           cycle_offset:        usize,
-           cycle_offset_slices: usize) -> RepVecRangeLockGuard<'a, T> {
+    fn new(
+        lock: &'a RepVecRangeLock<T>,
+        cycle_offset: usize,
+        cycle_offset_slices: usize,
+    ) -> RepVecRangeLockGuard<'a, T> {
         RepVecRangeLockGuard {
             lock,
             cycle_offset,
@@ -335,44 +327,44 @@ impl<'a, T> IndexMut<usize> for RepVecRangeLockGuard<'a, T> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::cell::RefCell;
     use std::sync::{Arc, Barrier};
     use std::thread;
-    use super::*;
 
     #[test]
-    #[should_panic(expected="cycle_len out of range")]
+    #[should_panic(expected = "cycle_len out of range")]
     fn test_oob_slice_len() {
         let _ = RepVecRangeLock::new(vec![0; 100], 1, 0);
     }
 
     #[test]
-    #[should_panic(expected="cycle_len out of range")]
+    #[should_panic(expected = "cycle_len out of range")]
     fn test_oob_cycle_len1() {
         let _ = RepVecRangeLock::new(vec![0; 100], 1, usize::MAX - 30);
     }
 
     #[test]
-    #[should_panic(expected="slice_len must not be 0")]
+    #[should_panic(expected = "slice_len must not be 0")]
     fn test_oob_cycle_len0() {
         let _ = RepVecRangeLock::new(vec![0; 100], 0, 1);
     }
 
     #[test]
-    #[should_panic(expected="cycle overflow")]
+    #[should_panic(expected = "cycle overflow")]
     fn test_oob_cycle_len2() {
         let _ = RepVecRangeLock::new(vec![0; 100], usize::MAX, 2);
     }
 
     #[test]
-    #[should_panic(expected="must be 0 <= cycle_offset < cycle_len")]
+    #[should_panic(expected = "must be 0 <= cycle_offset < cycle_len")]
     fn test_oob_lock_offset() {
         let a = RepVecRangeLock::new(vec![0; 100], 2, 10);
         let _ = a.try_lock(10);
     }
 
     #[test]
-    #[should_panic(expected="index out of bounds")]
+    #[should_panic(expected = "index out of bounds")]
     fn test_base_oob_read() {
         let a = RepVecRangeLock::new(vec![0; 100], 1, 2);
         let g = a.try_lock(0).unwrap();
@@ -380,7 +372,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected="guard 1 panicked")]
+    #[should_panic(expected = "guard 1 panicked")]
     fn test_overlap0() {
         let a = RepVecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6], 1, 3);
         let _g0 = a.try_lock(0).expect("guard 0 panicked");
@@ -388,7 +380,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected="guard 1 panicked")]
+    #[should_panic(expected = "guard 1 panicked")]
     fn test_overlap1() {
         let a = RepVecRangeLock::new(vec![1_i32, 2, 3, 4, 5, 6], 1, 3);
         let _g0 = a.try_lock(1).expect("guard 0 panicked");
@@ -397,9 +389,11 @@ mod tests {
 
     #[test]
     fn test_big_cycle() {
-        let a = Arc::new(RepVecRangeLock::new(vec![1_i32; 256],
-                                                2,      // slice_len
-                                                128));  // cycle_len
+        let a = Arc::new(RepVecRangeLock::new(
+            vec![1_i32; 256],
+            2,   // slice_len
+            128, // cycle_len
+        ));
         assert!(a.locked_offsets.len() == 4);
         {
             let _g = a.try_lock(0);
@@ -446,19 +440,23 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected="Invalid cycle_offset")]
+    #[should_panic(expected = "Invalid cycle_offset")]
     fn test_cycle_offset_out_of_range() {
-        let a = Arc::new(RepVecRangeLock::new(vec![1_i32; 256],
-                                                2,      // slice_len
-                                                128));  // cycle_len
+        let a = Arc::new(RepVecRangeLock::new(
+            vec![1_i32; 256],
+            2,   // slice_len
+            128, // cycle_len
+        ));
         let _g = a.try_lock(128);
     }
- 
+
     #[test]
     fn test_thread_no_overlap() {
-        let a = Arc::new(RepVecRangeLock::new(vec![1_i32, 2, 3, 4],
-                                                1,      // slice_len
-                                                2));    // cycle_len
+        let a = Arc::new(RepVecRangeLock::new(
+            vec![1_i32, 2, 3, 4],
+            1, // slice_len
+            2, // cycle_len
+        ));
         let b = Arc::clone(&a);
         let c = Arc::clone(&a);
         let ba0 = Arc::new(Barrier::new(2));
@@ -488,21 +486,26 @@ mod tests {
         });
         j1.join().expect("Thread 1 panicked.");
         j0.join().expect("Thread 0 panicked.");
-        assert!(a.locked_offsets.iter().all(|x| x.load(Ordering::Acquire) == 0));
+        assert!(a
+            .locked_offsets
+            .iter()
+            .all(|x| x.load(Ordering::Acquire) == 0));
     }
 
     struct NoSyncStruct(RefCell<u32>); // No Sync auto-trait.
 
     #[test]
     fn test_nosync() {
-        let a = Arc::new(RepVecRangeLock::new(vec![
-            NoSyncStruct(RefCell::new(1)),
-            NoSyncStruct(RefCell::new(2)),
-            NoSyncStruct(RefCell::new(3)),
-            NoSyncStruct(RefCell::new(4)),
-        ],
-            1,      // slice_len
-            2));    // cycle_len
+        let a = Arc::new(RepVecRangeLock::new(
+            vec![
+                NoSyncStruct(RefCell::new(1)),
+                NoSyncStruct(RefCell::new(2)),
+                NoSyncStruct(RefCell::new(3)),
+                NoSyncStruct(RefCell::new(4)),
+            ],
+            1, // slice_len
+            2, // cycle_len
+        ));
         let b = Arc::clone(&a);
         let c = Arc::clone(&a);
         let ba0 = Arc::new(Barrier::new(2));
@@ -519,7 +522,10 @@ mod tests {
         });
         j1.join().expect("Thread 1 panicked.");
         j0.join().expect("Thread 0 panicked.");
-        assert!(a.locked_offsets.iter().all(|x| x.load(Ordering::Acquire) == 0));
+        assert!(a
+            .locked_offsets
+            .iter()
+            .all(|x| x.load(Ordering::Acquire) == 0));
     }
 }
 
