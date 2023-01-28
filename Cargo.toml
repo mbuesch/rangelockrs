@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 [package]
-edition             = "2018"
+edition             = "2021"
 name                = "range-lock"
 description         = "Vec range lock"
 version             = "0.2.2"
