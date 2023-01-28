@@ -23,8 +23,7 @@ use std::{
 ///
 /// ```
 /// use range_lock::VecRangeLock;
-/// use std::sync::{Arc, Barrier};
-/// use std::thread;
+/// use std::{sync::{Arc, Barrier}, thread};
 ///
 /// let data = vec![10, 11, 12, 13];
 ///
@@ -36,32 +35,31 @@ use std::{
 /// let barrier0 = Arc::new(Barrier::new(2));
 /// let barrier1 = Arc::clone(&barrier0);
 ///
-/// let thread0 = thread::spawn(move || {
-///     {
-///         let mut guard = data_lock0.try_lock(0..2).expect("T0: Failed to lock 0..2");
-///         guard[0] = 100; // Write to data[0]
-///     }
-///     barrier0.wait(); // Synchronize with second thread.
-///     {
-///         let guard = data_lock0.try_lock(2..4).expect("T0: Failed to lock 2..4");
-///         assert_eq!(guard[0], 200); // Read from data[2]
-///     }
-/// });
+/// thread::scope(|s| {
+///     s.spawn(move || {
+///         {
+///             let mut guard = data_lock0.try_lock(0..2).expect("T0: Failed to lock 0..2");
+///             guard[0] = 100; // Write to data[0]
+///         }
+///         barrier0.wait(); // Synchronize with second thread.
+///         {
+///             let guard = data_lock0.try_lock(2..4).expect("T0: Failed to lock 2..4");
+///             assert_eq!(guard[0], 200); // Read from data[2]
+///         }
+///     });
 ///
-/// let thread1 = thread::spawn(move || {
-///     {
-///         let mut guard = data_lock1.try_lock(2..4).expect("T1: Failed to lock 2..4");
-///         guard[0] = 200; // Write to data[2]
-///     }
-///     barrier1.wait(); // Synchronize with first thread.
-///     {
-///         let guard = data_lock1.try_lock(0..2).expect("T1: Failed to lock 0..2");
-///         assert_eq!(guard[0], 100); // Read from data[0]
-///     }
+///     s.spawn(move || {
+///         {
+///             let mut guard = data_lock1.try_lock(2..4).expect("T1: Failed to lock 2..4");
+///             guard[0] = 200; // Write to data[2]
+///         }
+///         barrier1.wait(); // Synchronize with first thread.
+///         {
+///             let guard = data_lock1.try_lock(0..2).expect("T1: Failed to lock 0..2");
+///             assert_eq!(guard[0], 100); // Read from data[0]
+///         }
+///     });
 /// });
-///
-/// thread0.join().expect("Thread 0 failed");
-/// thread1.join().expect("Thread 1 failed");
 ///
 /// let data = Arc::try_unwrap(data_lock2).expect("Arc unwrap failed").into_inner();
 ///
