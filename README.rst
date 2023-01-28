@@ -1,9 +1,11 @@
 range-lock - Multithread range lock for Vec
 ===========================================
 
-`https://bues.ch/ <https://bues.ch/>`_
+`Project home <https://bues.ch/>`_
 
-`https://bues.ch/cgit/rangelockrs.git <https://bues.ch/cgit/rangelockrs.git>`_
+`Git repository <https://bues.ch/cgit/rangelockrs.git>`_
+
+`Github repository <https://github.com/mbuesch/rangelockrs>`_
 
 This crate provides locks/mutexes for multi-threaded access to a single Vec<T> instance.
 
@@ -93,6 +95,6 @@ The following new features might be candidates for future releases:
 License
 =======
 
-Copyright (c) 2021-2022 Michael Buesch <m@bues.ch>
+Copyright (c) 2021-2023 Michael Buesch <m@bues.ch>
 
 Licensed under the Apache License version 2.0 or the MIT license, at your option.
