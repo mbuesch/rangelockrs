@@ -46,7 +46,8 @@ impl LockedRanges {
         }
         // The range does not overlap with an existing one in the tree.
         // Insert it into the tree.
-        self.tree.insert(range.start, range.end);
+        let old = self.tree.insert(range.start, range.end);
+        debug_assert!(old.is_none());
         true
     }
 
