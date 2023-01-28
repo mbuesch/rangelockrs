@@ -131,18 +131,16 @@ impl<'a, T> VecRangeLock<T> {
 
         if range.is_empty() {
             TryLockResult::Ok(VecRangeLockGuard::new(self, range))
-        } else {
-            if let LockResult::Ok(mut ranges) = self.ranges.lock() {
-                if ranges.insert(&range) {
-                    TryLockResult::Ok(VecRangeLockGuard::new(self, range))
-                } else {
-                    TryLockResult::Err(TryLockError::WouldBlock)
-                }
+        } else if let LockResult::Ok(mut ranges) = self.ranges.lock() {
+            if ranges.insert(&range) {
+                TryLockResult::Ok(VecRangeLockGuard::new(self, range))
             } else {
-                TryLockResult::Err(TryLockError::Poisoned(PoisonError::new(
-                    VecRangeLockGuard::new(self, range),
-                )))
+                TryLockResult::Err(TryLockError::WouldBlock)
             }
+        } else {
+            TryLockResult::Err(TryLockError::Poisoned(PoisonError::new(
+                VecRangeLockGuard::new(self, range),
+            )))
         }
     }
 
