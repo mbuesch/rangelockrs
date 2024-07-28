@@ -487,6 +487,7 @@ mod tests {
             .all(|x| x.load(Ordering::Acquire) == 0));
     }
 
+    #[allow(dead_code)]
     struct NoSyncStruct(RefCell<u32>); // No Sync auto-trait.
 
     #[test]

@@ -1,6 +1,6 @@
 // -*- coding: utf-8 -*-
 //
-// Copyright 2021-2023 Michael Büsch <m@bues.ch>
+// Copyright 2021-2024 Michael Büsch <m@bues.ch>
 //
 // Licensed under the Apache License version 2.0
 // or the MIT license, at your option.
@@ -13,7 +13,6 @@ use std::{
     hint::unreachable_unchecked,
     marker::PhantomData,
     ops::{Deref, DerefMut, Range, RangeBounds},
-    rc::Rc,
     sync::{LockResult, Mutex, PoisonError, TryLockError, TryLockResult},
 };
 
@@ -196,9 +195,7 @@ pub struct VecRangeLockGuard<'a, T> {
     range: Range<usize>,
 
     /// Suppresses Send and Sync autotraits for VecRangeLockGuard.
-    /// The &mut suppresses Sync and the Rc suppresses Send.
-    #[allow(clippy::redundant_allocation)]
-    _p: PhantomData<Rc<&'a mut T>>,
+    _p: PhantomData<*mut T>,
 }
 
 impl<'a, T> VecRangeLockGuard<'a, T> {
@@ -374,6 +371,7 @@ mod tests {
         assert!(a.ranges.lock().unwrap().is_empty());
     }
 
+    #[allow(dead_code)]
     struct NoSyncStruct(RefCell<u32>); // No Sync auto-trait.
 
     #[test]
