@@ -1,6 +1,6 @@
 // -*- coding: utf-8 -*-
 //
-// Copyright 2021-2023 Michael Büsch <m@bues.ch>
+// Copyright 2021-2025 Michael Büsch <m@bues.ch>
 //
 // Licensed under the Apache License version 2.0
 // or the MIT license, at your option.
@@ -9,9 +9,8 @@
 
 use std::{
     cell::UnsafeCell,
-    hint::unreachable_unchecked,
     marker::PhantomData,
-    ops::{Index, IndexMut},
+    ops::{Index, IndexMut, Range},
     rc::Rc,
     sync::{
         atomic::{AtomicU32, Ordering},
@@ -110,6 +109,8 @@ pub struct RepVecRangeLock<T> {
     locked_offsets: Vec<AtomicU32>,
     /// The protected data.
     data: UnsafeCell<Vec<T>>,
+    /// Length of the underlying Vec.
+    len: usize,
 }
 
 // SAFETY:
@@ -140,6 +141,7 @@ impl<'a, T> RepVecRangeLock<T> {
         let mut locked_offsets = Vec::with_capacity(num);
         locked_offsets.resize_with(num, || AtomicU32::new(0));
 
+        let len = data.len();
         let data = UnsafeCell::new(data);
 
         RepVecRangeLock {
@@ -148,14 +150,14 @@ impl<'a, T> RepVecRangeLock<T> {
             cycle_num_elems,
             locked_offsets,
             data,
+            len,
         }
     }
 
     /// Get the length (in number of elements) of the embedded [Vec].
     #[inline]
     pub fn data_len(&self) -> usize {
-        // SAFETY: Multithreaded access is safe. len cannot change.
-        unsafe { (*self.data.get()).len() }
+        self.len
     }
 
     /// Unwrap this [RepVecRangeLock] into the contained data.
@@ -212,6 +214,19 @@ impl<'a, T> RepVecRangeLock<T> {
         debug_assert!(prev & mask != 0);
     }
 
+    /// Convert a 'cycle' / 'cycle_offset' into a `Range`.
+    #[inline]
+    fn calc_range(&self, cycle_offset_slices: usize, cycle: usize) -> Range<usize> {
+        if let Some(cycle_elemidx) = self.cycle_num_elems.checked_mul(cycle) {
+            if let Some(start) = cycle_elemidx.checked_add(cycle_offset_slices) {
+                if let Some(end) = start.checked_add(self.slice_len) {
+                    return Range { start, end }
+                }
+            }
+        }
+        panic!("RepVecRangeLock cycle index out of range.");
+    }
+
     /// Get an immutable slice at 'cycle' / 'cycle_offset'.
     ///
     /// # SAFETY
@@ -219,20 +234,14 @@ impl<'a, T> RepVecRangeLock<T> {
     /// See get_mut_slice().
     #[inline]
     unsafe fn get_slice(&self, cycle_offset_slices: usize, cycle: usize) -> &[T] {
-        if let Some(cycle_elemidx) = self.cycle_num_elems.checked_mul(cycle) {
-            if let Some(begin) = cycle_elemidx.checked_add(cycle_offset_slices) {
-                if let Some(end) = begin.checked_add(self.slice_len) {
-                    let dataptr = self.data.get();
-                    if end <= (*dataptr).len() {
-                        // SAFETY: We trust the slicing machinery of Vec to work correctly.
-                        //         It must return the slice range that we requested.
-                        //         Otherwise our non-overlap guarantees are gone.
-                        return &(*dataptr)[begin..end];
-                    }
-                }
-            }
+        let range = self.calc_range(cycle_offset_slices, cycle);
+        let data = (*self.data.get()).as_ptr();
+        unsafe {
+            core::slice::from_raw_parts(
+                data.offset(range.start.try_into().unwrap()) as _,
+                range.end - range.start
+            )
         }
-        panic!("RepVecRangeLock cycle index out of range.");
     }
 
     /// Get a mutable slice at 'cycle' / 'cycle_offset'.
@@ -244,12 +253,15 @@ impl<'a, T> RepVecRangeLock<T> {
     /// * Immutable slices to overlapping ranges may only coexist on a single thread.
     /// * Immutable and mutable slices must not coexist.
     #[inline]
-    #[allow(clippy::mut_from_ref)] // Slices won't overlap. See SAFETY.
     unsafe fn get_mut_slice(&self, cycle_offset_slices: usize, cycle: usize) -> &mut [T] {
-        let cptr = self.get_slice(cycle_offset_slices, cycle) as *const [T];
-        let mut_slice = (cptr as *mut [T]).as_mut();
-        // SAFETY: The pointer is never null, because it has been casted from a slice.
-        mut_slice.unwrap_or_else(|| unreachable_unchecked())
+        let range = self.calc_range(cycle_offset_slices, cycle);
+        let data = (*self.data.get()).as_mut_ptr();
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                data.offset(range.start.try_into().unwrap()) as _,
+                range.end - range.start
+            )
+        }
     }
 }
 

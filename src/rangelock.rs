@@ -1,6 +1,6 @@
 // -*- coding: utf-8 -*-
 //
-// Copyright 2021-2024 Michael Büsch <m@bues.ch>
+// Copyright 2021-2025 Michael Büsch <m@bues.ch>
 //
 // Licensed under the Apache License version 2.0
 // or the MIT license, at your option.
@@ -10,7 +10,6 @@
 use crate::{lockedranges::LockedRanges, util::get_bounds};
 use std::{
     cell::UnsafeCell,
-    hint::unreachable_unchecked,
     marker::PhantomData,
     ops::{Deref, DerefMut, Range, RangeBounds},
     sync::{LockResult, Mutex, PoisonError, TryLockError, TryLockResult},
@@ -70,6 +69,8 @@ pub struct VecRangeLock<T> {
     ranges: Mutex<LockedRanges>,
     /// The underlying data.
     data: UnsafeCell<Vec<T>>,
+    /// Length of the underlying Vec.
+    len: usize,
 }
 
 // SAFETY:
@@ -84,17 +85,18 @@ impl<'a, T> VecRangeLock<T> {
     ///
     /// * `data`: The data [Vec] to protect.
     pub fn new(data: Vec<T>) -> VecRangeLock<T> {
+        let len = data.len();
         VecRangeLock {
             ranges: Mutex::new(LockedRanges::new()),
             data: UnsafeCell::new(data),
+            len,
         }
     }
 
     /// Get the length (in number of elements) of the embedded [Vec].
     #[inline]
     pub fn data_len(&self) -> usize {
-        // SAFETY: Multithreaded access is safe. len cannot change.
-        unsafe { (*self.data.get()).len() }
+        self.len
     }
 
     /// Unwrap this [VecRangeLock] into the contained data.
@@ -159,10 +161,13 @@ impl<'a, T> VecRangeLock<T> {
     /// See get_mut_slice().
     #[inline]
     unsafe fn get_slice(&self, range: &Range<usize>) -> &[T] {
-        // SAFETY: We trust the slicing machinery of Vec to work correctly.
-        //         It must return the slice range that we requested.
-        //         Otherwise our non-overlap guarantees are gone.
-        &(*self.data.get())[range.clone()]
+        let data = (*self.data.get()).as_ptr();
+        unsafe {
+            core::slice::from_raw_parts(
+                data.offset(range.start.try_into().unwrap()) as _,
+                range.end - range.start
+            )
+        }
     }
 
     /// Get a mutable slice to the specified range.
@@ -174,12 +179,14 @@ impl<'a, T> VecRangeLock<T> {
     /// * Immutable slices to overlapping ranges may only coexist on a single thread.
     /// * Immutable and mutable slices must not coexist.
     #[inline]
-    #[allow(clippy::mut_from_ref)] // Slices won't overlap. See SAFETY.
     unsafe fn get_mut_slice(&self, range: &Range<usize>) -> &mut [T] {
-        let cptr = self.get_slice(range) as *const [T];
-        let mut_slice = (cptr as *mut [T]).as_mut();
-        // SAFETY: The pointer is never null, because it has been casted from a slice.
-        mut_slice.unwrap_or_else(|| unreachable_unchecked())
+        let data = (*self.data.get()).as_mut_ptr();
+        unsafe {
+            core::slice::from_raw_parts_mut(
+                data.offset(range.start.try_into().unwrap()) as _,
+                range.end - range.start
+            )
+        }
     }
 }
 
