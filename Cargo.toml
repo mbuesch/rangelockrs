@@ -4,7 +4,7 @@
 edition             = "2021"
 name                = "range-lock"
 description         = "Range lock for std::vec::Vec"
-version             = "0.2.3"
+version             = "0.2.4"
 authors             = ["Michael Büsch <m@bues.ch>"]
 license             = "MIT OR Apache-2.0"
 readme              = "README.md"

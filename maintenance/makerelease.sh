@@ -15,7 +15,7 @@ done
 
 hook_get_version()
 {
-    version="$(cargo_local_pkg_version rangelockrs)"
+    version="$(cargo_local_pkg_version range-lock)"
 }
 
 project=rangelockrs
