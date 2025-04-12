@@ -165,7 +165,7 @@ impl<'a, T> VecRangeLock<T> {
         unsafe {
             core::slice::from_raw_parts(
                 data.offset(range.start.try_into().unwrap()) as _,
-                range.end - range.start
+                range.end - range.start,
             )
         }
     }
@@ -185,7 +185,7 @@ impl<'a, T> VecRangeLock<T> {
         unsafe {
             core::slice::from_raw_parts_mut(
                 data.offset(range.start.try_into().unwrap()) as _,
-                range.end - range.start
+                range.end - range.start,
             )
         }
     }
