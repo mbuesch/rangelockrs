@@ -13,6 +13,7 @@ use std::{
     marker::PhantomData,
     ops::{Index, IndexMut, Range},
     rc::Rc,
+    slice,
     sync::{
         atomic::{AtomicU32, Ordering},
         TryLockError, TryLockResult,
@@ -232,14 +233,10 @@ impl<'a, T> RepVecRangeLock<T> {
     /// See get_mut_slice().
     #[inline]
     unsafe fn get_slice(&self, cycle_offset_slices: usize, cycle: usize) -> &[T] {
-        let range = self.calc_range(cycle_offset_slices, cycle);
         let data = (*self.data.get()).ptr();
-        unsafe {
-            core::slice::from_raw_parts(
-                data.offset(range.start.try_into().unwrap()) as _,
-                range.end - range.start,
-            )
-        }
+        let range = self.calc_range(cycle_offset_slices, cycle);
+        assert!(range.start <= isize::MAX as usize / size_of::<T>());
+        unsafe { slice::from_raw_parts(data.add(range.start) as _, range.end - range.start) }
     }
 
     /// Get a mutable slice at 'cycle' / 'cycle_offset'.
@@ -253,14 +250,10 @@ impl<'a, T> RepVecRangeLock<T> {
     #[inline]
     #[allow(clippy::mut_from_ref)]
     unsafe fn get_mut_slice(&self, cycle_offset_slices: usize, cycle: usize) -> &mut [T] {
-        let range = self.calc_range(cycle_offset_slices, cycle);
         let data = (*self.data.get()).ptr();
-        unsafe {
-            core::slice::from_raw_parts_mut(
-                data.offset(range.start.try_into().unwrap()) as _,
-                range.end - range.start,
-            )
-        }
+        let range = self.calc_range(cycle_offset_slices, cycle);
+        assert!(range.start <= isize::MAX as usize / size_of::<T>());
+        unsafe { slice::from_raw_parts_mut(data.add(range.start) as _, range.end - range.start) }
     }
 }
 

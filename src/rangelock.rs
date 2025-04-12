@@ -12,6 +12,7 @@ use std::{
     cell::UnsafeCell,
     marker::PhantomData,
     ops::{Deref, DerefMut, Range, RangeBounds},
+    slice,
     sync::{LockResult, Mutex, PoisonError, TryLockError, TryLockResult},
 };
 
@@ -159,12 +160,8 @@ impl<'a, T> VecRangeLock<T> {
     #[inline]
     unsafe fn get_slice(&self, range: &Range<usize>) -> &[T] {
         let data = (*self.data.get()).ptr();
-        unsafe {
-            core::slice::from_raw_parts(
-                data.offset(range.start.try_into().unwrap()) as _,
-                range.end - range.start,
-            )
-        }
+        assert!(range.start <= isize::MAX as usize / size_of::<T>());
+        unsafe { slice::from_raw_parts(data.add(range.start) as _, range.end - range.start) }
     }
 
     /// Get a mutable slice to the specified range.
@@ -179,12 +176,8 @@ impl<'a, T> VecRangeLock<T> {
     #[allow(clippy::mut_from_ref)]
     unsafe fn get_mut_slice(&self, range: &Range<usize>) -> &mut [T] {
         let data = (*self.data.get()).ptr();
-        unsafe {
-            core::slice::from_raw_parts_mut(
-                data.offset(range.start.try_into().unwrap()) as _,
-                range.end - range.start,
-            )
-        }
+        assert!(range.start <= isize::MAX as usize / size_of::<T>());
+        unsafe { slice::from_raw_parts_mut(data.add(range.start) as _, range.end - range.start) }
     }
 }
 
