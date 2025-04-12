@@ -7,11 +7,11 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //
 
-use std::{mem::ManuallyDrop, ptr::null_mut};
+use std::{mem::ManuallyDrop, ptr::NonNull};
 
 /// A `Vec<T>` deconstructed into its parts.
 pub(crate) struct VecParts<T> {
-    ptr: *mut T,
+    ptr: NonNull<T>,
     len: usize,
     cap: usize,
 }
@@ -22,7 +22,7 @@ unsafe impl<T> Send for VecParts<T> where Vec<T>: Send {}
 impl<T> VecParts<T> {
     #[inline]
     pub fn ptr(&self) -> *mut T {
-        self.ptr
+        self.ptr.as_ptr()
     }
 
     #[inline]
@@ -34,9 +34,15 @@ impl<T> VecParts<T> {
 impl<T> From<Vec<T>> for VecParts<T> {
     #[inline]
     fn from(v: Vec<T>) -> Self {
+        // Dropping will be handled by us.
+        // Suppress drop from Vec by wrapping in ManuallyDrop.
         let mut v = ManuallyDrop::new(v);
+
+        // SAFETY: Vec never returns a null pointer.
+        let ptr = unsafe { NonNull::new_unchecked(v.as_mut_ptr()) };
+
         Self {
-            ptr: v.as_mut_ptr(),
+            ptr,
             len: v.len(),
             cap: v.capacity(),
         }
@@ -45,35 +51,23 @@ impl<T> From<Vec<T>> for VecParts<T> {
 
 impl<T> From<VecParts<T>> for Vec<T> {
     #[inline]
-    fn from(mut p: VecParts<T>) -> Self {
-        let ptr = p.ptr;
-        let len = p.len;
-        let cap = p.cap;
+    fn from(p: VecParts<T>) -> Self {
+        // The returned Vec does take care of dropping.
+        // Avoid the call to our Drop handler by wrapping in ManuallyDrop.
+        let p = ManuallyDrop::new(p);
 
-        p.ptr = null_mut();
-        p.len = 0;
-        p.cap = 0;
-
-        unsafe { Vec::from_raw_parts(ptr, len, cap) }
+        // SAFETY: This is a valid Vec and it hasn't been dropped, yet.
+        unsafe { Vec::from_raw_parts(p.ptr.as_ptr(), p.len, p.cap) }
     }
 }
 
 impl<T> Drop for VecParts<T> {
     #[inline]
     fn drop(&mut self) {
-        if !self.ptr.is_null() {
-            let ptr = self.ptr;
-            let len = self.len;
-            let cap = self.cap;
-
-            self.ptr = null_mut();
-            self.len = 0;
-            self.cap = 0;
-
-            // Drop the Vec<T> properly.
-            unsafe {
-                drop(Vec::from_raw_parts(ptr, len, cap));
-            }
+        // Drop the Vec<T> properly.
+        // SAFETY: This is a valid Vec and it hasn't been dropped, yet.
+        unsafe {
+            drop(Vec::from_raw_parts(self.ptr.as_ptr(), self.len, self.cap));
         }
     }
 }
