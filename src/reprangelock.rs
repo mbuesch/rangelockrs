@@ -186,8 +186,8 @@ impl<'a, T> RepVecRangeLock<T> {
         let idx = cycle_offset / 32;
         let mask = 1 << (cycle_offset % 32);
         // SAFETY: cycle_offset has been checked against cycle_len.
-        let prev =
-            unsafe { self.locked_offsets.get_unchecked(idx) }.fetch_or(mask, Ordering::AcqRel);
+        let locked_offsets = unsafe { self.locked_offsets.get_unchecked(idx) };
+        let prev = locked_offsets.fetch_or(mask, Ordering::AcqRel);
         if prev & mask == 0 {
             // Multiply cannot overflow due to slice_len, cycle_len and cycle_offset checks.
             let cycle_offset_slices = self.slice_len * cycle_offset;
@@ -209,8 +209,8 @@ impl<'a, T> RepVecRangeLock<T> {
         let idx = cycle_offset / 32;
         let mask = 1 << (cycle_offset % 32);
         // SAFETY: cycle_offset has been checked against cycle_len in try_lock().
-        let prev =
-            unsafe { self.locked_offsets.get_unchecked(idx) }.fetch_xor(mask, Ordering::Release);
+        let locked_offsets = unsafe { self.locked_offsets.get_unchecked(idx) };
+        let prev = locked_offsets.fetch_xor(mask, Ordering::Release);
         debug_assert!(prev & mask != 0);
     }
 
@@ -237,6 +237,8 @@ impl<'a, T> RepVecRangeLock<T> {
         let data = (*self.data.get()).ptr();
         let range = self.calc_range(cycle_offset_slices, cycle);
         assert!(range.start <= isize::MAX as usize / size_of::<T>());
+        // SAFETY: The caller is responsible for passing a range that results in a valid slice
+        // and isize overflow has been checked here.
         unsafe { slice::from_raw_parts(data.add(range.start) as _, range.end - range.start) }
     }
 
@@ -254,6 +256,8 @@ impl<'a, T> RepVecRangeLock<T> {
         let data = (*self.data.get()).ptr();
         let range = self.calc_range(cycle_offset_slices, cycle);
         assert!(range.start <= isize::MAX as usize / size_of::<T>());
+        // SAFETY: The caller is responsible for passing a range that results in a valid slice
+        // and isize overflow has been checked here.
         unsafe { slice::from_raw_parts_mut(data.add(range.start) as _, range.end - range.start) }
     }
 }

@@ -162,6 +162,8 @@ impl<'a, T> VecRangeLock<T> {
     unsafe fn get_slice(&self, range: &Range<usize>) -> &[T] {
         let data = (*self.data.get()).ptr();
         assert!(range.start <= isize::MAX as usize / size_of::<T>());
+        // SAFETY: The caller is responsible for passing a range that results in a valid slice
+        // and isize overflow has been checked here.
         unsafe { slice::from_raw_parts(data.add(range.start) as _, range.end - range.start) }
     }
 
@@ -178,6 +180,8 @@ impl<'a, T> VecRangeLock<T> {
     unsafe fn get_mut_slice(&self, range: &Range<usize>) -> &mut [T] {
         let data = (*self.data.get()).ptr();
         assert!(range.start <= isize::MAX as usize / size_of::<T>());
+        // SAFETY: The caller is responsible for passing a range that results in a valid slice
+        // and isize overflow has been checked here.
         unsafe { slice::from_raw_parts_mut(data.add(range.start) as _, range.end - range.start) }
     }
 }

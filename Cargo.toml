@@ -14,4 +14,7 @@ rust-version        = "1.73"
 categories          = ["concurrency", "algorithms"]
 keywords            = ["mutex", "lock", "range"]
 
+[lints.clippy]
+undocumented_unsafe_blocks = "warn"
+
 # vim: ts=4 sw=4 expandtab
