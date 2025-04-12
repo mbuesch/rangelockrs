@@ -9,7 +9,7 @@ authors             = ["Michael Büsch <m@bues.ch>"]
 license             = "MIT OR Apache-2.0"
 readme              = "README.md"
 repository          = "https://bues.ch/cgit/rangelockrs.git"
-rust-version        = "1.75"
+rust-version        = "1.73"
 
 categories          = ["concurrency", "algorithms"]
 keywords            = ["mutex", "lock", "range"]
