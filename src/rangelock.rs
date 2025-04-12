@@ -110,10 +110,10 @@ impl<'a, T> VecRangeLock<T> {
     /// Try to lock the given data `range`.
     ///
     /// * On success: Returns a [VecRangeLockGuard] that can be used to access the locked region.
-    ///               Dereferencing [VecRangeLockGuard] yields a slice of the `data`.
+    ///   Dereferencing [VecRangeLockGuard] yields a slice of the `data`.
     /// * On failure: Returns [TryLockError::WouldBlock], if the range is contended.
-    ///               The locking attempt may be retried by the caller upon contention.
-    ///               Returns [TryLockError::Poisoned], if the lock is poisoned.
+    ///   The locking attempt may be retried by the caller upon contention.
+    ///   Returns [TryLockError::Poisoned], if the lock is poisoned.
     pub fn try_lock(
         &'a self,
         range: impl RangeBounds<usize>,
@@ -179,6 +179,7 @@ impl<'a, T> VecRangeLock<T> {
     /// * Immutable slices to overlapping ranges may only coexist on a single thread.
     /// * Immutable and mutable slices must not coexist.
     #[inline]
+    #[allow(clippy::mut_from_ref)]
     unsafe fn get_mut_slice(&self, range: &Range<usize>) -> &mut [T] {
         let data = (*self.data.get()).as_mut_ptr();
         unsafe {
@@ -216,14 +217,14 @@ impl<'a, T> VecRangeLockGuard<'a, T> {
     }
 }
 
-impl<'a, T> Drop for VecRangeLockGuard<'a, T> {
+impl<T> Drop for VecRangeLockGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
         self.lock.unlock(&self.range);
     }
 }
 
-impl<'a, T> Deref for VecRangeLockGuard<'a, T> {
+impl<T> Deref for VecRangeLockGuard<'_, T> {
     type Target = [T];
 
     #[inline]
@@ -233,7 +234,7 @@ impl<'a, T> Deref for VecRangeLockGuard<'a, T> {
     }
 }
 
-impl<'a, T> DerefMut for VecRangeLockGuard<'a, T> {
+impl<T> DerefMut for VecRangeLockGuard<'_, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         // SAFETY:

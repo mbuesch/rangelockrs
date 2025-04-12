@@ -137,7 +137,7 @@ impl<'a, T> RepVecRangeLock<T> {
             panic!("Repeat cycle overflow.");
         };
 
-        let num = (cycle_len + 31) / 32;
+        let num = cycle_len.div_ceil(32);
         let mut locked_offsets = Vec::with_capacity(num);
         locked_offsets.resize_with(num, || AtomicU32::new(0));
 
@@ -174,10 +174,10 @@ impl<'a, T> RepVecRangeLock<T> {
     /// Try to lock the given data slice at 'cycle_offset'.
     ///
     /// * On success: Returns a [RepVecRangeLockGuard] that can be used to access the locked region.
-    ///               Indexing [RepVecRangeLockGuard] yields a slice of the `data`.
+    ///   Indexing [RepVecRangeLockGuard] yields a slice of the `data`.
     /// * On failure: Returns [TryLockError::WouldBlock], if the slice is contended.
-    ///               The locking attempt may be retried by the caller upon contention.
-    ///               Returns [TryLockError::Poisoned], if the lock is poisoned.
+    ///   The locking attempt may be retried by the caller upon contention.
+    ///   Returns [TryLockError::Poisoned], if the lock is poisoned.
     #[inline]
     pub fn try_lock(&'a self, cycle_offset: usize) -> TryLockResult<RepVecRangeLockGuard<'a, T>> {
         if cycle_offset >= self.cycle_len {
@@ -253,6 +253,7 @@ impl<'a, T> RepVecRangeLock<T> {
     /// * Immutable slices to overlapping ranges may only coexist on a single thread.
     /// * Immutable and mutable slices must not coexist.
     #[inline]
+    #[allow(clippy::mut_from_ref)]
     unsafe fn get_mut_slice(&self, cycle_offset_slices: usize, cycle: usize) -> &mut [T] {
         let range = self.calc_range(cycle_offset_slices, cycle);
         let data = (*self.data.get()).as_mut_ptr();
@@ -299,14 +300,14 @@ impl<'a, T> RepVecRangeLockGuard<'a, T> {
     }
 }
 
-impl<'a, T> Drop for RepVecRangeLockGuard<'a, T> {
+impl<T> Drop for RepVecRangeLockGuard<'_, T> {
     #[inline]
     fn drop(&mut self) {
         self.lock.unlock(self.cycle_offset);
     }
 }
 
-impl<'a, T> Index<usize> for RepVecRangeLockGuard<'a, T> {
+impl<T> Index<usize> for RepVecRangeLockGuard<'_, T> {
     type Output = [T];
 
     #[inline]
@@ -316,7 +317,7 @@ impl<'a, T> Index<usize> for RepVecRangeLockGuard<'a, T> {
     }
 }
 
-impl<'a, T> IndexMut<usize> for RepVecRangeLockGuard<'a, T> {
+impl<T> IndexMut<usize> for RepVecRangeLockGuard<'_, T> {
     #[inline]
     fn index_mut(&mut self, cycle: usize) -> &mut Self::Output {
         // SAFETY:
