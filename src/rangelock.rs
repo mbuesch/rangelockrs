@@ -7,7 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //
 
-use crate::{lockedranges::LockedRanges, util::get_bounds};
+use crate::{lockedranges::LockedRanges, util::get_bounds, vecparts::VecParts};
 use std::{
     cell::UnsafeCell,
     marker::PhantomData,
@@ -68,9 +68,7 @@ pub struct VecRangeLock<T> {
     /// Set of the currently locked ranges.
     ranges: Mutex<LockedRanges>,
     /// The underlying data.
-    data: UnsafeCell<Vec<T>>,
-    /// Length of the underlying Vec.
-    len: usize,
+    data: UnsafeCell<VecParts<T>>,
 }
 
 // SAFETY:
@@ -85,18 +83,17 @@ impl<'a, T> VecRangeLock<T> {
     ///
     /// * `data`: The data [Vec] to protect.
     pub fn new(data: Vec<T>) -> VecRangeLock<T> {
-        let len = data.len();
         VecRangeLock {
             ranges: Mutex::new(LockedRanges::new()),
-            data: UnsafeCell::new(data),
-            len,
+            data: UnsafeCell::new(data.into()),
         }
     }
 
     /// Get the length (in number of elements) of the embedded [Vec].
     #[inline]
     pub fn data_len(&self) -> usize {
-        self.len
+        // SAFETY: The UnsafeCell content it always valid.
+        unsafe { (*self.data.get()).len() }
     }
 
     /// Unwrap this [VecRangeLock] into the contained data.
@@ -104,7 +101,7 @@ impl<'a, T> VecRangeLock<T> {
     #[inline]
     pub fn into_inner(self) -> Vec<T> {
         debug_assert!(self.ranges.lock().unwrap().is_empty());
-        self.data.into_inner()
+        self.data.into_inner().into()
     }
 
     /// Try to lock the given data `range`.
@@ -161,7 +158,7 @@ impl<'a, T> VecRangeLock<T> {
     /// See get_mut_slice().
     #[inline]
     unsafe fn get_slice(&self, range: &Range<usize>) -> &[T] {
-        let data = (*self.data.get()).as_ptr();
+        let data = (*self.data.get()).ptr();
         unsafe {
             core::slice::from_raw_parts(
                 data.offset(range.start.try_into().unwrap()) as _,
@@ -181,7 +178,7 @@ impl<'a, T> VecRangeLock<T> {
     #[inline]
     #[allow(clippy::mut_from_ref)]
     unsafe fn get_mut_slice(&self, range: &Range<usize>) -> &mut [T] {
-        let data = (*self.data.get()).as_mut_ptr();
+        let data = (*self.data.get()).ptr();
         unsafe {
             core::slice::from_raw_parts_mut(
                 data.offset(range.start.try_into().unwrap()) as _,

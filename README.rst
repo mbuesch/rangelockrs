@@ -94,6 +94,6 @@ The following new features might be candidates for future releases:
 License
 =======
 
-Copyright (c) 2021-2023 Michael Büsch <m@bues.ch>
+Copyright (c) 2021-2025 Michael Büsch <m@bues.ch>
 
 Licensed under the Apache License version 2.0 or the MIT license, at your option.

@@ -7,6 +7,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 //
 
+use crate::vecparts::VecParts;
 use std::{
     cell::UnsafeCell,
     marker::PhantomData,
@@ -108,9 +109,7 @@ pub struct RepVecRangeLock<T> {
     /// Bitmask of locked cycle offsets.
     locked_offsets: Vec<AtomicU32>,
     /// The protected data.
-    data: UnsafeCell<Vec<T>>,
-    /// Length of the underlying Vec.
-    len: usize,
+    data: UnsafeCell<VecParts<T>>,
 }
 
 // SAFETY:
@@ -141,8 +140,7 @@ impl<'a, T> RepVecRangeLock<T> {
         let mut locked_offsets = Vec::with_capacity(num);
         locked_offsets.resize_with(num, || AtomicU32::new(0));
 
-        let len = data.len();
-        let data = UnsafeCell::new(data);
+        let data = UnsafeCell::new(data.into());
 
         RepVecRangeLock {
             slice_len,
@@ -150,14 +148,14 @@ impl<'a, T> RepVecRangeLock<T> {
             cycle_num_elems,
             locked_offsets,
             data,
-            len,
         }
     }
 
     /// Get the length (in number of elements) of the embedded [Vec].
     #[inline]
     pub fn data_len(&self) -> usize {
-        self.len
+        // SAFETY: The UnsafeCell content it always valid.
+        unsafe { (*self.data.get()).len() }
     }
 
     /// Unwrap this [RepVecRangeLock] into the contained data.
@@ -168,7 +166,7 @@ impl<'a, T> RepVecRangeLock<T> {
             .locked_offsets
             .iter()
             .all(|x| x.load(Ordering::Acquire) == 0));
-        self.data.into_inner()
+        self.data.into_inner().into()
     }
 
     /// Try to lock the given data slice at 'cycle_offset'.
@@ -235,7 +233,7 @@ impl<'a, T> RepVecRangeLock<T> {
     #[inline]
     unsafe fn get_slice(&self, cycle_offset_slices: usize, cycle: usize) -> &[T] {
         let range = self.calc_range(cycle_offset_slices, cycle);
-        let data = (*self.data.get()).as_ptr();
+        let data = (*self.data.get()).ptr();
         unsafe {
             core::slice::from_raw_parts(
                 data.offset(range.start.try_into().unwrap()) as _,
@@ -256,7 +254,7 @@ impl<'a, T> RepVecRangeLock<T> {
     #[allow(clippy::mut_from_ref)]
     unsafe fn get_mut_slice(&self, cycle_offset_slices: usize, cycle: usize) -> &mut [T] {
         let range = self.calc_range(cycle_offset_slices, cycle);
-        let data = (*self.data.get()).as_mut_ptr();
+        let data = (*self.data.get()).ptr();
         unsafe {
             core::slice::from_raw_parts_mut(
                 data.offset(range.start.try_into().unwrap()) as _,

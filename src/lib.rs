@@ -64,6 +64,7 @@ mod lockedranges;
 mod rangelock;
 mod reprangelock;
 mod util;
+mod vecparts;
 
 pub use rangelock::{VecRangeLock, VecRangeLockGuard};
 pub use reprangelock::{RepVecRangeLock, RepVecRangeLockGuard};
