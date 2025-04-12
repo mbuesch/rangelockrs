@@ -11,6 +11,7 @@ use crate::{lockedranges::LockedRanges, util::get_bounds, vecparts::VecParts};
 use std::{
     cell::UnsafeCell,
     marker::PhantomData,
+    mem::size_of,
     ops::{Deref, DerefMut, Range, RangeBounds},
     slice,
     sync::{LockResult, Mutex, PoisonError, TryLockError, TryLockResult},

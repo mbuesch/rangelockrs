@@ -11,6 +11,7 @@ use crate::vecparts::VecParts;
 use std::{
     cell::UnsafeCell,
     marker::PhantomData,
+    mem::size_of,
     ops::{Index, IndexMut, Range},
     rc::Rc,
     slice,
